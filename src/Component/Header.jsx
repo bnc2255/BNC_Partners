@@ -506,6 +506,8 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
             </div>
           </div>
         </div>
+        {/* Top Brand Accent Line - Elegant fading gradient */}
+        <div className="h-[1.5px] bg-gradient-to-r from-transparent via-[#DC2626]/40 to-transparent w-full"></div>
       </header>
 
       {/* Spacer for fixed header */}

@@ -239,7 +239,6 @@ const DiscoverServices = () => {
 
       {/* Top Brand Accent Line - Elegant fading gradient */}
       <div className="h-[1.5px] bg-gradient-to-r from-transparent via-[#E52E38]/30 to-transparent w-full"></div>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow w-full font-geist" dir={isRtl ? 'rtl' : 'ltr'}>
 
         {/* Hero title */}

@@ -465,7 +465,6 @@ const UserDashboard = () => {
         <div className="absolute top-[-10%] left-[-10%] w-[650px] h-[650px] rounded-full bg-gradient-to-tr from-[#E52E38]/18 via-[#E52E38]/8 to-transparent blur-[140px] pointer-events-none z-0"></div>
         <div className="absolute top-[30%] right-[-10%] w-[550px] h-[550px] rounded-full bg-gradient-to-bl from-[#E52E38]/14 via-[#E52E38]/6 to-transparent blur-[120px] pointer-events-none z-0"></div>
         <div className="absolute bottom-[-10%] left-[20%] w-[750px] h-[750px] rounded-full bg-gradient-to-r from-[#0F2A4A]/8 to-[#E52E38]/12 blur-[160px] pointer-events-none z-0"></div>
-        <div className="h-[1.5px] bg-gradient-to-r from-transparent via-[#E52E38]/30 to-transparent w-full shrink-0 z-10"></div>
 
         {/* Dashboard Main Container */}
         <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8 relative z-10">

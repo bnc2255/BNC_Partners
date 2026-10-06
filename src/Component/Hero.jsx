@@ -251,16 +251,15 @@ const Hero = () => {
 
 
             <motion.h1
-              className="font-inter text-5xl sm:text-6xl md:text-7xl font-medium text-slate-900 leading-tight tracking-tight max-w-5xl mx-auto mb-1"
+              className="font-capriola text-5xl sm:text-6xl md:text-7xl font-extrabold text-slate-900 leading-tight tracking-tight max-w-5xl mx-auto mb-1 flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-2"
               variants={itemVariants}
             >
-              <>
-                {t('hero.titlePrefix')}{' '}
-                <span className="text-slate-900">BnC</span>{' '}
-                <span className="inline-block border-2 border-[#DC2626] px-3 py-1 rounded-2xl text-[#DC2626] text-4xl sm:text-5xl md:text-6xl tracking-tight ml-1 leading-none">
-                  LEG
-                </span>
-              </>
+              <span>{t('hero.titlePrefix')}</span>
+              <img
+                src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png"
+                alt="BNC LEG"
+                className="h-10 sm:h-14 md:h-16 lg:h-20 w-auto object-contain inline-block align-middle relative -translate-y-1 sm:-translate-y-1.5"
+              />
             </motion.h1>
 
             {/* Tagline */}
