@@ -52,7 +52,7 @@ const AuthRecoveryRedirect = () => {
       if (
         fullUrl.includes('type=recovery') ||
         fullUrl.includes('otp_expired') ||
-        (fullUrl.includes('access_denied') && !fullUrl.includes('oauth=')) ||
+        fullUrl.includes('access_denied') ||
         (hash.includes('access_token') && (hash.includes('type=recovery') || search.includes('type=recovery')))
       ) {
         if (location.pathname !== '/reset-password') {

@@ -16,8 +16,7 @@ const sections = [
   {
     title: '3. Accounts and Authentication',
     body: [
-      'You are responsible for providing accurate account information and for maintaining the confidentiality of your login credentials.',
-      'If you choose to sign in with Google, you authorize us and our authentication provider to use basic Google account information strictly for authentication, account linking, and security.'
+      'You are responsible for providing accurate account information and for maintaining the confidentiality of your login credentials.'
     ]
   },
   {
@@ -86,7 +85,7 @@ const TermsOfService = () => {
             Effective Date: April 6, 2026
           </p>
           <p className="mt-6 font-geist text-base leading-7 text-slate-700">
-            These terms describe the rules for using the BNC LEG partner portal and are published on the same production domain for Google OAuth verification readiness.
+            These terms describe the rules for using the BNC LEG partner portal.
           </p>
 
           <div className="mt-10 space-y-8">

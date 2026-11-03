@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FaUser, FaShieldAlt, FaLock, FaIdCard, FaArrowLeft, FaEye, FaEyeSlash, FaChartLine, FaBriefcase, FaHandshake, FaGraduationCap, FaEnvelope, FaTimes, FaCheckCircle } from 'react-icons/fa';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { fetchPartnerData, isPartnerProfileComplete, loginAdmin, loginPartner, loginPartnerWithGoogle, requestPasswordReset, updatePartnerLoginRole } from '../lib/supabaseData';
-import { supabase } from '../lib/supabaseClient';
+import { fetchPartnerData, isPartnerProfileComplete, loginAdmin, loginPartner, requestPasswordReset } from '../lib/supabaseData';
 
 const Login = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
   const textAlign = isRtl ? 'text-right' : 'text-left';
@@ -21,7 +19,6 @@ const Login = () => {
   const [isAdminOnly, setIsAdminOnly] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     email: '',
@@ -102,99 +99,6 @@ const Login = () => {
     }
   }, [location]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const completeGoogleLogin = async () => {
-      const searchParams = new URLSearchParams(location.search);
-      const hasOAuthMarker = searchParams.get('oauth') === 'partner';
-      const hasHashToken = String(location.hash || '').includes('access_token');
-      const hasCode = searchParams.has('code');
-
-      const oauthError = searchParams.get('error_description') || searchParams.get('error');
-      if (oauthError && hasOAuthMarker) {
-        setErrors({ general: oauthError });
-        return;
-      }
-
-      const isAdminType = searchParams.get('type') === 'admin';
-      if (isAdminType || (!hasOAuthMarker && !hasHashToken && !hasCode)) {
-        return;
-      }
-
-      setIsGoogleLoading(true);
-      try {
-        let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        if (!session?.user && hasCode) {
-          const code = searchParams.get('code');
-          try {
-            const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-            if (!exchangeError && exchangeData?.session) {
-              session = exchangeData.session;
-            }
-          } catch (err) {
-            const res = await supabase.auth.getSession();
-            session = res.data?.session;
-          }
-        }
-
-        if (!session?.user) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            session = { user };
-          }
-        }
-
-        if (!session?.user) throw new Error('Authentication session not found');
-        if (!isMounted) return;
-
-        let partner = await fetchPartnerData(session.user.email, session.user.id);
-        if (!partner) {
-          // Allow a brief delay in case the database trigger is still executing
-          await new Promise((r) => setTimeout(r, 600));
-          if (!isMounted) return;
-          partner = await fetchPartnerData(session.user.email, session.user.id);
-        }
-        if (!isMounted) return;
-
-        const roleParam = searchParams.get('role');
-        if (partner && (roleParam === 'provider' || roleParam === 'consumer')) {
-          if (!partner.loginRole) {
-            try {
-              await updatePartnerLoginRole(partner.id, roleParam);
-              partner.loginRole = roleParam;
-            } catch (e) {
-              console.warn('Failed to set login role from OAuth callback:', e);
-            }
-          }
-        }
-
-        if (!partner) {
-          navigate('/complete-profile', { replace: true });
-          return;
-        }
-
-        localStorage.removeItem('adminUser');
-        localStorage.setItem('partnerUser', JSON.stringify(partner));
-
-        const dbRole = partner.loginRole === 'consumer' ? 'consumer' : (roleParam === 'consumer' ? 'consumer' : 'provider');
-        localStorage.setItem('dashboardRole', dbRole);
-
-        navigate(isPartnerProfileComplete(partner) ? '/dashboard' : '/complete-profile', { replace: true });
-      } catch (error) {
-        console.error('OAuth callback processing error:', error);
-        setErrors({ general: error?.message || 'Authentication callback failed' });
-      } finally {
-        if (isMounted) setIsGoogleLoading(false);
-      }
-    };
-
-    completeGoogleLogin();
-    return () => { isMounted = false; };
-  }, [location, navigate]);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -268,23 +172,6 @@ const Login = () => {
     }
   };
 
-
-  const handleGoogleLogin = async () => {
-    setIsGoogleLoading(true);
-    setErrors({});
-    try {
-      const redirectUrl = new URL(`${window.location.origin}/login`);
-      redirectUrl.searchParams.set('oauth', 'partner');
-      if (selectedRole) {
-        redirectUrl.searchParams.set('role', selectedRole);
-      }
-      await loginPartnerWithGoogle(redirectUrl.toString());
-    } catch (error) {
-      console.error('Google login start error:', error);
-      setErrors({ general: error?.message || t('login.errors.loginFailed') });
-      setIsGoogleLoading(false);
-    }
-  };
 
   return (
     <div className={`min-h-screen w-full flex flex-col md:flex-row ${isRtl ? 'md:flex-row-reverse' : ''} bg-white`}>
@@ -500,7 +387,7 @@ const Login = () => {
               {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
             </div>
 
-            {/* Submit + Create */}
+            {/* Submit */}
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-3 mt-2">
               <button
                 type="submit"
@@ -511,29 +398,6 @@ const Login = () => {
                   ? t('login.signingIn')
                   : (activeTab === 'partner' ? t('login.partnerSignIn') : t('login.adminSignIn'))}
               </button>
-              {activeTab === 'partner' && (
-                <>
-                  <div className="relative flex py-1 items-center">
-                    <div className="flex-grow border-t border-slate-200"></div>
-                    <span className="flex-shrink mx-3 text-xs text-slate-400 uppercase tracking-wider">{t('login.or', 'or')}</span>
-                    <div className="flex-grow border-t border-slate-200"></div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleGoogleLogin}
-                    disabled={isLoading || isGoogleLoading}
-                    className="w-full bg-white hover:bg-slate-50 text-slate-700 py-2.5 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2.5 border border-slate-300 disabled:opacity-50 shadow-sm hover:shadow cursor-pointer"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-                      <path fill="#EA4335" d="M24 9.5c3.4 0 6.4 1.2 8.8 3.3l6.5-6.5C35.3 2.5 30 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.6 5.9C12 13.3 17.5 9.5 24 9.5z" />
-                      <path fill="#4285F4" d="M46.5 24.5c0-1.7-.1-3.3-.4-4.8H24v9.1h12.7c-.5 2.9-2.1 5.4-4.5 7.1l7 5.4c4.1-3.8 6.3-9.4 6.3-16.8z" />
-                      <path fill="#FBBC05" d="M10.1 28.8c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.6-5.9C.9 17.1 0 20.5 0 24.3s.9 7.2 2.5 10.4l7.6-5.9z" />
-                      <path fill="#34A853" d="M24 48c6.5 0 12-2.1 16-5.8l-7-5.4c-2 1.3-4.5 2.1-9 2.1-6.5 0-12-3.8-14-9.3l-7.6 5.9C6.4 42.6 14.6 48 24 48z" />
-                    </svg>
-                    {isGoogleLoading ? t('login.redirectingToGoogle', 'Redirecting to Google...') : t('login.continueWithGoogle', 'Continue with Google')}
-                  </button>
-                </>
-              )}
             </div>
           </form>
 
