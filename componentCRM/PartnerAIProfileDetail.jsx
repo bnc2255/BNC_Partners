@@ -13,14 +13,16 @@ import {
   Tag,
   Layers,
   Award,
-  BookOpen,
   AlertCircle,
   Loader2,
   Shield,
   Globe2,
-  Star
+  Star,
+  Download,
+  ExternalLink
 } from 'lucide-react';
 import { fetchPartnerAIProfile } from '../src/lib/supabaseData';
+import TermsAgreementModal from '../src/Component/TermsAgreementModal';
 
 /* ─── Brand Tokens (matches BnC hero page) ─────────────────────────────────
    Black   : #0f0f0f
@@ -73,12 +75,40 @@ const capitalize = (str) =>
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+/**
+ * Normalizes comma-separated strings or nested arrays into clean distinct items
+ */
+const normalizeTagList = (raw) => {
+  if (!raw) return [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  const tokens = [];
+
+  list.forEach((entry) => {
+    if (!entry) return;
+    if (typeof entry === 'string') {
+      entry.split(',').forEach((sub) => {
+        const trimmed = sub.trim();
+        if (trimmed && !tokens.includes(trimmed)) {
+          tokens.push(trimmed);
+        }
+      });
+    } else {
+      const val = String(entry).trim();
+      if (val && !tokens.includes(val)) {
+        tokens.push(val);
+      }
+    }
+  });
+
+  return tokens;
+};
+
 /* ─── Section Card ───────────────────────────────────────────────────────── */
-function SectionCard({ icon: Icon, title, iconColor = T.blue, children }) {
+function SectionCard({ icon: IconComponent, title, iconColor = T.blue, children }) {
   return (
     <div
-      className="bg-white rounded-2xl border overflow-hidden"
-      style={{ borderColor: T.border, boxShadow: '0 1px 8px rgba(15,15,15,0.06)' }}
+      className="bg-white rounded-2xl border overflow-hidden transition-shadow hover:shadow-xs"
+      style={{ borderColor: T.border, boxShadow: '0 1px 8px rgba(15,15,15,0.04)' }}
     >
       {/* Header stripe */}
       <div
@@ -89,7 +119,7 @@ function SectionCard({ icon: Icon, title, iconColor = T.blue, children }) {
           className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: iconColor === T.red ? T.redSoft : T.blueSoft }}
         >
-          <Icon size={15} style={{ color: iconColor }} />
+          {IconComponent && <IconComponent size={15} style={{ color: iconColor }} />}
         </div>
         <h2
           className="text-[13px] font-bold tracking-wide uppercase"
@@ -106,17 +136,33 @@ function SectionCard({ icon: Icon, title, iconColor = T.blue, children }) {
 /* ─── Tag Pill ───────────────────────────────────────────────────────────── */
 function TagPill({ label, variant = 'blue' }) {
   const styles = {
-    blue: { bg: T.blueSoft, color: T.blue, border: 'rgba(29,78,216,0.2)' },
-    red: { bg: T.redSoft, color: T.red, border: 'rgba(220,38,38,0.2)' },
-    dark: { bg: 'rgba(15,15,15,0.05)', color: T.black, border: 'rgba(15,15,15,0.12)' },
+    blue: {
+      bg: '#eff6ff',
+      color: '#1d4ed8',
+      border: '#bfdbfe',
+      dot: '#3b82f6'
+    },
+    red: {
+      bg: '#fef2f2',
+      color: '#dc2626',
+      border: '#fecaca',
+      dot: '#ef4444'
+    },
+    dark: {
+      bg: '#f8fafc',
+      color: '#0f172a',
+      border: '#e2e8f0',
+      dot: '#64748b'
+    }
   };
   const s = styles[variant] || styles.blue;
   return (
     <span
-      className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold border"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all hover:shadow-xs"
       style={{ background: s.bg, color: s.color, borderColor: s.border }}
     >
-      {label}
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
+      <span>{label}</span>
     </span>
   );
 }
@@ -135,7 +181,7 @@ function InfoRow({ label, value, highlight = false }) {
         {label}
       </span>
       <span
-        className="text-[13px] font-semibold break-all"
+        className="text-[13px] font-semibold break-words"
         style={{ color: highlight ? T.blue : T.black }}
       >
         {value || '—'}
@@ -146,16 +192,19 @@ function InfoRow({ label, value, highlight = false }) {
 
 /* ─── Tag List ───────────────────────────────────────────────────────────── */
 function TagList({ items, variant = 'blue' }) {
-  if (!items || items.length === 0) {
+  const normalized = normalizeTagList(items);
+
+  if (!normalized || normalized.length === 0) {
     return (
       <p className="text-[13px] italic" style={{ color: T.mutedLight }}>
         None listed
       </p>
     );
   }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item, i) => (
+    <div className="flex flex-wrap gap-2.5 items-center">
+      {normalized.map((item, i) => (
         <TagPill key={i} label={capitalize(item)} variant={variant} />
       ))}
     </div>
@@ -231,7 +280,7 @@ function ExperienceTable({ experienceDetails }) {
 }
 
 /* ─── Stat Badge ─────────────────────────────────────────────────────────── */
-function StatBadge({ icon: Icon, label, value, variant = 'blue' }) {
+function StatBadge({ icon: IconComponent, label, value, variant = 'blue' }) {
   const isBlue = variant === 'blue';
   return (
     <div
@@ -241,7 +290,7 @@ function StatBadge({ icon: Icon, label, value, variant = 'blue' }) {
         borderColor: isBlue ? 'rgba(29,78,216,0.15)' : 'rgba(220,38,38,0.15)'
       }}
     >
-      <Icon size={16} style={{ color: isBlue ? T.blue : T.red }} />
+      {IconComponent && <IconComponent size={16} style={{ color: isBlue ? T.blue : T.red }} />}
       <div>
         <p className="text-[11px] font-medium" style={{ color: T.muted }}>{label}</p>
         <p className="text-[13px] font-bold" style={{ color: T.black }}>{value}</p>
@@ -253,17 +302,29 @@ function StatBadge({ icon: Icon, label, value, variant = 'blue' }) {
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 function PartnerAIProfileDetail({ partner, onBack }) {
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(partner?.email));
   const [error, setError] = useState(null);
+  const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!partner?.email) return;
-    setLoading(true);
-    setError(null);
+    let isMounted = true;
+    if (!partner?.email) {
+      return;
+    }
     fetchPartnerAIProfile(partner.email)
-      .then((data) => setProfile(data))
-      .catch((err) => setError(err?.message || 'Failed to load profile'))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (isMounted) setProfile(data);
+      })
+      .catch((err) => {
+        if (isMounted) setError(err?.message || 'Failed to load profile');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [partner?.email]);
 
   /* ── Loading ── */
@@ -307,7 +368,7 @@ function PartnerAIProfileDetail({ partner, onBack }) {
             </div>
             <button
               onClick={onBack}
-              className="mt-1 px-6 py-2.5 rounded-full text-[13px] font-bold text-white transition-all hover:opacity-90"
+              className="mt-1 px-6 py-2.5 rounded-full text-[13px] font-bold text-white transition-all hover:opacity-90 cursor-pointer"
               style={{ background: T.red }}
             >
               Return to CRM
@@ -329,6 +390,10 @@ function PartnerAIProfileDetail({ partner, onBack }) {
   const fullName = p.name || partner?.name || '—';
   const location = [p.city || partner?.city, p.country || partner?.country].filter(Boolean).join(', ') || '—';
 
+  const servicesList = normalizeTagList(p.services);
+  const industriesList = normalizeTagList(p.industries);
+  const experienceIndustriesList = normalizeTagList(p.experienceIndustries);
+
   return (
     <div className="flex flex-col flex-1 min-w-0 overflow-hidden" style={{ background: T.bg }}>
 
@@ -337,6 +402,7 @@ function PartnerAIProfileDetail({ partner, onBack }) {
         onBack={onBack}
         agreementSigned={p.agreementSigned}
         hasAIProfile={p.hasAIProfile}
+        onViewAgreement={() => setIsAgreementModalOpen(true)}
       />
 
       {/* ── Scrollable Body ── */}
@@ -413,8 +479,8 @@ function PartnerAIProfileDetail({ partner, onBack }) {
 
           {/* ── Quick Stats Row ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatBadge icon={Tag} label="Services" value={`${(p.services || []).length} listed`} variant="blue" />
-            <StatBadge icon={Layers} label="Industries" value={`${(p.industries || []).length} listed`} variant="blue" />
+            <StatBadge icon={Tag} label="Services" value={`${servicesList.length} listed`} variant="blue" />
+            <StatBadge icon={Layers} label="Industries" value={`${industriesList.length} listed`} variant="blue" />
             <StatBadge icon={Briefcase} label="Experience" value={`${Object.keys(p.experienceDetails || {}).length} roles`} variant="red" />
             <StatBadge
               icon={p.agreementSigned ? CheckCircle2 : Clock}
@@ -425,7 +491,7 @@ function PartnerAIProfileDetail({ partner, onBack }) {
           </div>
 
           {/* ── Two Column ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             <SectionCard icon={Tag} title="Services Offered" iconColor={T.blue}>
               <TagList items={p.services} variant="blue" />
             </SectionCard>
@@ -435,7 +501,7 @@ function PartnerAIProfileDetail({ partner, onBack }) {
             </SectionCard>
 
             <SectionCard icon={Globe2} title="Industries with Experience" iconColor={T.blue}>
-              <TagList items={p.experienceIndustries} variant="dark" />
+              <TagList items={experienceIndustriesList} variant="dark" />
             </SectionCard>
 
             <SectionCard icon={User} title="Partner Details" iconColor={T.black}>
@@ -451,18 +517,6 @@ function PartnerAIProfileDetail({ partner, onBack }) {
             <ExperienceTable experienceDetails={p.experienceDetails} />
           </SectionCard>
 
-          {/* ── Bio ── */}
-          {p.bio && (
-            <SectionCard icon={BookOpen} title="Professional Bio" iconColor={T.black}>
-              <p
-                className="text-[14px] leading-relaxed whitespace-pre-wrap"
-                style={{ color: '#334155', fontFamily: 'Geist, sans-serif' }}
-              >
-                {p.bio}
-              </p>
-            </SectionCard>
-          )}
-
           {/* ── Agreement ── */}
           <SectionCard
             icon={p.agreementSigned ? CheckCircle2 : Clock}
@@ -472,27 +526,48 @@ function PartnerAIProfileDetail({ partner, onBack }) {
             {p.agreementSigned ? (
               <div className="space-y-0">
                 <div
-                  className="flex items-center gap-4 p-4 rounded-xl border mb-5"
+                  className="flex items-center justify-between flex-wrap gap-4 p-4 rounded-xl border mb-5"
                   style={{
                     background: T.blueSoft,
                     borderColor: 'rgba(29,78,216,0.15)'
                   }}
                 >
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: T.blue }}
+                  <div className="flex items-center gap-3.5">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: T.blue }}
+                    >
+                      <CheckCircle2 size={18} color={T.white} />
+                    </div>
+                    <div>
+                      <p className="text-[14px] font-bold mb-0.5" style={{ color: T.black }}>Agreement Signed</p>
+                      <p className="text-[12px]" style={{ color: T.muted }}>
+                        This partner has accepted and digitally signed all terms &amp; conditions
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAgreementModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-xs transition-all cursor-pointer"
                   >
-                    <CheckCircle2 size={18} color={T.white} />
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-bold mb-0.5" style={{ color: T.black }}>Agreement Signed</p>
-                    <p className="text-[12px]" style={{ color: T.muted }}>
-                      This partner has accepted all terms &amp; conditions
-                    </p>
-                  </div>
+                    <Download size={13} />
+                    <span>Download Agreement</span>
+                  </button>
                 </div>
-                <InfoRow label="Signed By" value={p.agreementSignedName} highlight />
+                <InfoRow label="Signed By" value={p.agreementSignedName || fullName} highlight />
                 <InfoRow label="Signed On" value={fmtTime(p.agreementSignedAt)} />
+
+                <div className="pt-4 mt-2 flex flex-wrap items-center gap-3 border-t" style={{ borderColor: T.divider }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAgreementModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold text-white bg-[#0F2A4A] hover:bg-[#0A1D34] active:scale-95 shadow-xs transition-all cursor-pointer"
+                  >
+                    <ExternalLink size={14} />
+                    <span>View Full Signed Agreement</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div
@@ -530,12 +605,28 @@ function PartnerAIProfileDetail({ partner, onBack }) {
           <div className="h-6" />
         </div>
       </div>
+
+      {/* ── Partner Agreement Modal ── */}
+      <TermsAgreementModal
+        isOpen={isAgreementModalOpen}
+        onClose={() => setIsAgreementModalOpen(false)}
+        partnerData={{
+          id: p.partnerId || partner?.id,
+          firstName: p.name?.split(' ')[0] || partner?.firstName || '',
+          lastName: p.name?.split(' ').slice(1).join(' ') || partner?.lastName || '',
+          email: p.email || partner?.email,
+          agreementSigned: true,
+          agreementSignedName: p.agreementSignedName || p.name || partner?.name,
+          agreementSignedAt: p.agreementSignedAt
+        }}
+        isSigned={true}
+      />
     </div>
   );
 }
 
 /* ─── Top Bar ─────────────────────────────────────────────────────────────── */
-function TopBar({ onBack, agreementSigned, hasAIProfile }) {
+function TopBar({ onBack, agreementSigned, hasAIProfile, onViewAgreement }) {
   return (
     <div
       className="flex items-center justify-between px-7 h-[72px] shrink-0 border-b"
@@ -543,7 +634,7 @@ function TopBar({ onBack, agreementSigned, hasAIProfile }) {
     >
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-[13px] font-semibold transition-all hover:opacity-70 group"
+        className="flex items-center gap-2 text-[13px] font-semibold transition-all hover:opacity-70 group cursor-pointer"
         style={{ color: T.black, fontFamily: 'Geist, sans-serif' }}
       >
         <span
@@ -555,15 +646,26 @@ function TopBar({ onBack, agreementSigned, hasAIProfile }) {
         Back to Partners
       </button>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         {agreementSigned && (
-          <span
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border"
-            style={{ background: T.blueSoft, color: T.blue, borderColor: 'rgba(29,78,216,0.2)' }}
-          >
-            <CheckCircle2 size={12} />
-            Agreement Signed
-          </span>
+          <>
+            <span
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border"
+              style={{ background: T.blueSoft, color: T.blue, borderColor: 'rgba(29,78,216,0.2)' }}
+            >
+              <CheckCircle2 size={12} />
+              Agreement Signed
+            </span>
+            <button
+              type="button"
+              onClick={onViewAgreement}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-xs transition-all cursor-pointer"
+              title="View & Download Partner Signed Agreement"
+            >
+              <Download size={13} />
+              <span>Download Agreement</span>
+            </button>
+          </>
         )}
         {hasAIProfile && (
           <span
@@ -580,11 +682,11 @@ function TopBar({ onBack, agreementSigned, hasAIProfile }) {
 }
 
 /* ─── Contact Chip ────────────────────────────────────────────────────────── */
-function ContactChip({ icon: Icon, value }) {
+function ContactChip({ icon: IconComponent, value }) {
   if (!value || value === '—') return null;
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <Icon size={13} style={{ color: T.muted, flexShrink: 0 }} />
+      {IconComponent && <IconComponent size={13} style={{ color: T.muted, flexShrink: 0 }} />}
       <span
         className="text-[12px] font-medium truncate"
         style={{ color: '#475569', fontFamily: 'Geist, sans-serif' }}

@@ -777,6 +777,7 @@ const UserDashboard = () => {
         isOpen={isAgreementOpen}
         onClose={() => setIsAgreementOpen(false)}
         partnerData={partnerData}
+        isSigned={agreementSigned || Boolean(partnerData?.agreementSigned)}
         onSubmitted={async ({ signedName, signedAt }) => {
           await submitPartnerAgreement({
             partnerId: partnerData?.id,

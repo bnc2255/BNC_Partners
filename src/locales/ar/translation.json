@@ -2834,7 +2834,23 @@
     "errors": {
       "signatureRequired": "يرجى كتابة اسمك الكامل للتوقيع الإلكتروني.",
       "acceptRequired": "يرجى تأكيد أنك قرأت الشروط ووافقت عليها."
-    }
+    },
+    "signedTitle": "اتفاقية الشريك الموقعة",
+    "signedSubtitle": "اتفاقية رسمية منفذة وموثقة بين شركة BNC LEG المحدودة والشريك",
+    "signedBadge": "موقعة وموثقة",
+    "certificateTitle": "شهادة التوقيع الرقمي",
+    "certificateSubtitle": "منفذة رقميًا وملزمة قانونيًا بموجب معايير شركاء BNC LEG",
+    "signedBy": "تم التوقيع بواسطة",
+    "signedDate": "تاريخ ووقت التوقيع",
+    "signature": "التوقيع الرقمي",
+    "signerEmail": "البريد الإلكتروني للموقع",
+    "verificationStatus": "حالة التوثيق",
+    "verifiedStatus": "تم التوثيق والاعتماد",
+    "agreementId": "معرف الاتفاقية",
+    "close": "إغلاق",
+    "print": "طباعة / حفظ كـ PDF",
+    "download": "تنزيل الاتفاقية",
+    "readSignedAgreement": "قراءة الاتفاقية الموقعة"
   },
   "aiProfile": {
     "title": "ملف الشريك بالذكاء الاصطناعي",

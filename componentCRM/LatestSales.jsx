@@ -1,10 +1,20 @@
 import React from "react";
+import { FileSpreadsheet } from "lucide-react";
+import { exportPartnersToExcel } from "../src/lib/exportExcel";
 
 function LatestSales({ rows = [] }) {
   return (
     <div className="bg-white rounded-[12px] border border-[#f0f0f3] p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-[#1c1d21] text-[16px] font-bold">Latest Partner Registrations</h2>
+        <button
+          onClick={() => exportPartnersToExcel(rows, "BNC_Latest_Partners")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-xs transition-all cursor-pointer"
+          title="Export latest registrations to Excel"
+        >
+          <FileSpreadsheet size={13} />
+          <span>Export to Excel</span>
+        </button>
       </div>
 
       <div className="w-full overflow-x-auto">

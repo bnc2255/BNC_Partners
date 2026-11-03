@@ -2743,7 +2743,23 @@
     "errors": {
       "signatureRequired": "Please type your full name for the e-signature.",
       "acceptRequired": "Please confirm you have read and agree to the terms."
-    }
+    },
+    "signedTitle": "Signed Partner Agreement",
+    "signedSubtitle": "Official executed agreement between BNC LEG Pvt. Ltd. and Partner",
+    "signedBadge": "Signed & Verified",
+    "certificateTitle": "Digital Signature Certificate",
+    "certificateSubtitle": "Digitally executed and legally binding under BNC LEG partner standards",
+    "signedBy": "Signed By",
+    "signedDate": "Signed Date & Time",
+    "signature": "Digital Signature",
+    "signerEmail": "Signer Email",
+    "verificationStatus": "Verification Status",
+    "verifiedStatus": "Verified & Authenticated",
+    "agreementId": "Agreement ID",
+    "close": "Close",
+    "print": "Print / Save PDF",
+    "download": "Download Agreement",
+    "readSignedAgreement": "Read Signed Agreement"
   },
   "aiProfile": {
     "title": "AI Partner Profile",

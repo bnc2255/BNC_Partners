@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   UserCheck,
   Sparkles,
@@ -8,7 +9,8 @@ import {
   Award,
   ArrowRight,
   ShieldCheck,
-  Gift
+  Gift,
+  FileText
 } from 'lucide-react';
 
 const ProviderProfile = ({
@@ -26,11 +28,12 @@ const ProviderProfile = ({
   handleTabChange
 }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   // Resolve actual states including AI status
   const profileCompleted = checklistState?.profileCompleted || false;
   const bankLinked = checklistState?.bankLinked || false;
   const servicePublished = checklistState?.servicePublished || false;
-  const actualAgreementSigned = agreementSigned || checklistState?.agreementSigned || false;
+  const actualAgreementSigned = agreementSigned || checklistState?.agreementSigned || Boolean(partnerData?.agreementSigned) || false;
 
   // Checklist configuration — Steps 2 (credentials) and 4 (bank) removed
   const steps = [
@@ -60,8 +63,10 @@ const ProviderProfile = ({
       icon: PenTool,
       action: () => setIsAgreementOpen(true),
       actionLabel: "Sign Agreement",
+      viewAction: () => setIsAgreementOpen(true),
+      viewActionLabel: t('termsAgreement.readSignedAgreement', 'Read Signed Agreement'),
       details: actualAgreementSigned
-        ? `Digitally signed as ${partnerData?.agreementSignedName || partnerData?.firstName}`
+        ? `Digitally signed as ${partnerData?.agreementSignedName || partnerData?.firstName || 'Partner'}`
         : null
     },
     {
@@ -144,9 +149,25 @@ const ProviderProfile = ({
                     <p className="text-[11px] text-slate-500 mt-0.5 font-medium leading-relaxed">
                       {step.desc}
                     </p>
-                    {step.details && (
-                      <div className="mt-2 text-[11px] font-bold text-slate-700 bg-slate-100/55 px-3 py-1.5 rounded-lg inline-block">
-                        {step.details}
+                    {(step.details || (step.completed && step.viewAction)) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2.5">
+                        {step.details && (
+                          <div className="text-[11px] font-bold text-slate-700 bg-slate-100/70 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 border border-slate-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>{step.details}</span>
+                          </div>
+                        )}
+                        {step.completed && step.viewAction && (
+                          <button
+                            type="button"
+                            onClick={step.viewAction}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all shadow-xs hover:shadow-sm"
+                            title="Read what you have signed and view your signature"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{step.viewActionLabel}</span>
+                          </button>
+                        )}
                       </div>
                     )}
                     {!step.completed && step.action && (

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Search, ExternalLink } from "lucide-react";
+import { Search, ExternalLink, FileSpreadsheet } from "lucide-react";
+import { exportPartnersToExcel } from "../src/lib/exportExcel";
 
 const statusStyles = {
   Complete: { color: "#5e81f4", bg: "rgba(94,129,244,0.10)" },
@@ -51,15 +52,25 @@ function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onView
       </div>
 
       <div className="flex-1 overflow-hidden px-7 pb-7 pt-4 flex flex-col gap-4">
-        <div className="relative w-full max-w-[360px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8181a5]" />
-          <input
-            type="text"
-            placeholder="Search partners..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white border border-[#f0f0f3] rounded-[8px] pl-9 pr-4 py-2 text-[13px] text-[#1c1d21] placeholder-[#8181a5] outline-none focus:border-[#5e81f4] transition-colors"
-          />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative w-full max-w-[360px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8181a5]" />
+            <input
+              type="text"
+              placeholder="Search partners..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-white border border-[#f0f0f3] rounded-[8px] pl-9 pr-4 py-2 text-[13px] text-[#1c1d21] placeholder-[#8181a5] outline-none focus:border-[#5e81f4] transition-colors"
+            />
+          </div>
+          <button
+            onClick={() => exportPartnersToExcel(filtered, "BNC_Partners_CRM")}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] text-[13px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-xs transition-all cursor-pointer"
+            title="Export partner records to Excel spreadsheet"
+          >
+            <FileSpreadsheet size={15} />
+            <span>Export to Excel</span>
+          </button>
         </div>
 
         <div className="bg-white rounded-[12px] border border-[#f0f0f3] overflow-auto flex-1">
