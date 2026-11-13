@@ -7,7 +7,7 @@ const RoleSelectionModal = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (window.__PRERENDER__) return;
+    if (window.__PRERENDER__ || /^\/(?:ar\/)?(?:admin-dashboard|dashboard)(?:\/|$)/.test(window.location.pathname)) return;
     // Check if the user is already logged in (partner or admin)
     const partnerUser = localStorage.getItem('partnerUser');
     const adminUser = localStorage.getItem('adminUser');
@@ -17,6 +17,7 @@ const RoleSelectionModal = () => {
 
     // Show popup after 3 seconds (3000ms)
     const timer = setTimeout(() => {
+      if (localStorage.getItem('partnerUser') || localStorage.getItem('adminUser')) return;
       setIsVisible(true);
     }, 3000);
 

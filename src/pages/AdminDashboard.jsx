@@ -9,6 +9,7 @@ import { PlannedIncomeChart } from '../../componentCRM/PlannedIncomeChart';
 import { LatestSales } from '../../componentCRM/LatestSales';
 import { PartnerCRMTable } from '../../componentCRM/PartnerCRMTable';
 import { PartnerAIProfileDetail } from '../../componentCRM/PartnerAIProfileDetail';
+import { FollowUpComposer, PartnerFollowUps } from '../../componentCRM/PartnerFollowUps';
 import {
   CampaignBuilderView,
   CampaignsView,
@@ -137,7 +138,10 @@ const buildMonthlySeries = (partners) => {
 const AdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState('dashboard');
+  const [loadError, setLoadError] = useState('');
+  const [activeView, setActiveView] = useState(() => new URLSearchParams(window.location.search).get('view') === 'followups' ? 'followups' : 'dashboard');
+  const [emailPartners, setEmailPartners] = useState(null);
+  const openFollowUp = value => setEmailPartners(Array.isArray(value) ? value : [value]);
   const [activeCampaignId, setActiveCampaignId] = useState(null);
   const [selectedPartner, setSelectedPartner] = useState(null);
   const navigate = useNavigate();
@@ -154,7 +158,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const userData = localStorage.getItem('adminUser');
     if (!userData) {
-      navigate('/login');
+      navigate('/login?type=admin');
       return;
     }
 
@@ -168,13 +172,9 @@ const AdminDashboard = () => {
             error: userError
           } = await supabase.auth.getUser();
 
-          if (userError) {
-            throw userError;
-          }
-
-          if (!user) {
+          if (userError || !user) {
             localStorage.removeItem('adminUser');
-            navigate('/login');
+            navigate('/login?type=admin');
             return;
           }
 
@@ -190,14 +190,16 @@ const AdminDashboard = () => {
 
           if (!adminRow) {
             localStorage.removeItem('adminUser');
-            navigate('/login');
+            navigate('/login?type=admin');
             return;
           }
 
           const data = await fetchAdminDashboardData();
           setDashboardData(data);
+          setLoadError('');
         } catch (error) {
           console.error('Error fetching admin data:', error);
+          setLoadError(error.message || 'Could not load dashboard data.');
         } finally {
           setLoading(false);
         }
@@ -217,7 +219,7 @@ const AdminDashboard = () => {
       };
     } catch (error) {
       console.error('Error parsing admin user:', error);
-      navigate('/login');
+      navigate('/login?type=admin');
       return undefined;
     }
   }, [navigate]);
@@ -229,11 +231,12 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Logout error:', error);
     }
-    navigate('/login');
+    navigate('/login?type=admin');
   };
 
   const handleViewChange = (view) => {
     setActiveView(view);
+    navigate(view === 'followups' ? '?view=followups' : '/admin-dashboard', { replace: true });
     setSelectedPartner(null);
     if (view !== 'campaignBuilder') {
       setActiveCampaignId(null);
@@ -377,8 +380,19 @@ const AdminDashboard = () => {
     );
   }
 
+  if (loadError && !dashboardData) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
+        <p role="alert">{loadError}</p>
+        <button onClick={() => window.location.reload()}>Retry</button>
+        <a href="/login?type=admin">Sign in as admin</a>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-[#f5f5fa] flex overflow-hidden">
+      {emailPartners && <FollowUpComposer partners={emailPartners.map(partner => mappedPartners.find(p => p.id === partner.id) || partner)} onClose={() => setEmailPartners(null)} />}
       <NavSidebar activeView={activeView === 'campaignBuilder' ? 'campaigns' : activeView} onViewChange={handleViewChange} />
 
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
@@ -393,7 +407,10 @@ const AdminDashboard = () => {
             adminLabel={adminData?.adminId || adminData?.email || 'Admin'}
             onLogout={handleLogout}
             onViewPartner={handleViewPartner}
+            onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp}
           />
+        ) : activeView === 'followups' ? (
+          <PartnerFollowUps partners={mappedPartners} adminLabel={adminData?.adminId || adminData?.email || 'Admin'} onLogout={handleLogout} onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp} />
         ) : activeView === 'submissions' ? (
           <FormSubmissionsView />
         ) : activeView === 'leads' ? (
