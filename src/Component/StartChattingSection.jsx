@@ -1,13 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { ConversationProvider } from '@elevenlabs/react';
 import {
   Send,
-  Mic,
-  AudioLines,
-  ArrowLeft,
   Plus,
   Building2,
   Briefcase,
@@ -15,23 +11,13 @@ import {
   Users,
   Sparkles,
   ArrowRight,
-  Volume2,
   X
 } from 'lucide-react';
 import RequirementVoiceModal from './RequirementVoiceModal';
 import { submitVoiceRequirement } from '../lib/supabaseData';
-import { useElevenLabsOrbSource } from '../voice/useElevenLabsOrbSource';
-import { getVoiceAgentId } from '../voice/elevenLabsConfig';
 
-const VoiceOrbCanvas = lazy(() => import('../voice/orb/VoiceOrbCanvas'));
 
-const StartChattingSection = (props) => (
-  <ConversationProvider>
-    <StartChattingContent {...props} />
-  </ConversationProvider>
-);
-
-const StartChattingContent = ({ embedded = false, compact = false }) => {
+const StartChattingSection = ({ embedded = false, compact = false }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
@@ -40,15 +26,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [micError, setMicError] = useState('');
-  const [speakingIndex, setSpeakingIndex] = useState(null);
   const [isRequirementModalOpen, setIsRequirementModalOpen] = useState(false);
-  const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
-  const [isVoiceRequesting, setIsVoiceRequesting] = useState(false);
-  const [voiceError, setVoiceError] = useState('');
-  const recognitionRef = useRef(null);
-  const speechStopTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const hasUserMessage = messages.some((item) => item.type === 'user');
   const [leftWidth, setLeftWidth] = useState(65);
@@ -56,21 +34,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
   const containerRef = useRef(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [showVideoPopup, setShowVideoPopup] = useState(false);
-  const voiceRequestRef = useRef(null);
-  const voiceConversation = useElevenLabsOrbSource({
-    onConnect: () => setVoiceError(''),
-    onError: (error) => setVoiceError(error || t('startChatting.chat.voiceError'))
-  });
-  const voiceIsConnecting = isVoiceRequesting || voiceConversation.status === 'connecting';
-  const voiceIsConnected = voiceConversation.status === 'connected';
-  const voiceIsActive = voiceIsConnecting || voiceIsConnected;
-
-  const endVoiceSession = voiceConversation.end;
-  useEffect(() => () => {
-    voiceRequestRef.current?.abort();
-    endVoiceSession();
-  }, [endVoiceSession]);
-
   useEffect(() => {
     if (compact) return;
     const hasSeenVideo = localStorage.getItem('hasSeenStartChattingVideo');
@@ -107,51 +70,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
-
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setMicError(t('startChatting.chat.mic.notSupported'));
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = isRtl ? 'ar-SA' : 'en-US';
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognition.onstart = () => {
-      setMicError('');
-      setIsListening(true);
-    };
-    recognition.onresult = (event) => {
-      let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        transcript += event.results[i][0].transcript;
-      }
-      setMessage(transcript.trim());
-      if (speechStopTimerRef.current) {
-        clearTimeout(speechStopTimerRef.current);
-      }
-      speechStopTimerRef.current = setTimeout(() => {
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-        }
-      }, 5000);
-    };
-    recognition.onerror = (event) => {
-      setIsListening(false);
-      setMicError(event?.error
-        ? t('startChatting.chat.mic.genericWithCode', { code: event.error })
-        : t('startChatting.chat.mic.generic'));
-    };
-    recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
-    return () => {
-      if (speechStopTimerRef.current) {
-        clearTimeout(speechStopTimerRef.current);
-      }
-      recognition.stop();
-    };
-  }, [isRtl, t]);
 
   const formatTime = (date) =>
     date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -221,13 +139,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
     }
   };
 
-  const handleSendMessage = () => {
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-    sendMessage(message);
-  };
+  const handleSendMessage = () => sendMessage(message);
 
   const handleRequirementSend = async (payload) => {
     const requirementText = typeof payload === 'string' ? payload : payload?.text || '';
@@ -267,7 +179,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
   const handleOpenRequirementModal = () => {
     const stored = localStorage.getItem('partnerUser');
     if (!stored) {
-      alert('Please log in first to submit your voice requirement.');
+      alert('Please log in first to submit your requirement.');
       navigate('/login');
       return;
     }
@@ -278,24 +190,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
     sendMessage(t('startChatting.quickCardMessage', { title, subtitle }));
   };
 
-  const sanitizeSpeechText = (text) =>
-    text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/\s+/g, ' ').trim();
-
-  const handleSpeak = (text, idx) => {
-    if (!text) return;
-    if (!window.speechSynthesis) return;
-    if (speakingIndex === idx) {
-      window.speechSynthesis.cancel();
-      setSpeakingIndex(null);
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(sanitizeSpeechText(text));
-    utterance.onend = () => setSpeakingIndex(null);
-    utterance.onerror = () => setSpeakingIndex(null);
-    setSpeakingIndex(idx);
-    window.speechSynthesis.speak(utterance);
-  };
   const omitMarkdownNode = (props) => {
     const cleanProps = { ...props };
     delete cleanProps.node;
@@ -327,60 +221,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
       </ReactMarkdown>
     );
   };
-  const handleMicClick = () => {
-    if (!recognitionRef.current) {
-      setMicError(t('startChatting.chat.mic.notSupported'));
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      return;
-    }
-    setMicError('');
-    recognitionRef.current.start();
-  };
-
-  const handleBackToTextChat = () => {
-    voiceRequestRef.current?.abort();
-    voiceRequestRef.current = null;
-    setIsVoiceRequesting(false);
-    voiceConversation.end();
-    setIsVoiceModeOpen(false);
-    setVoiceError('');
-  };
-
-  const handleVoiceChatClick = async () => {
-    if (isVoiceModeOpen) {
-      handleBackToTextChat();
-      return;
-    }
-
-    if (!getVoiceAgentId()) {
-      setIsVoiceModeOpen(true);
-      setVoiceError(t('startChatting.chat.voiceNotConfigured'));
-      return;
-    }
-
-    setIsVoiceModeOpen(true);
-    setIsVoiceRequesting(true);
-    setVoiceError('');
-    const controller = new AbortController();
-    voiceRequestRef.current = controller;
-    try {
-      await voiceConversation.start(controller.signal);
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        setVoiceError(error instanceof Error ? error.message : t('startChatting.chat.voiceError'));
-      }
-    } finally {
-      if (voiceRequestRef.current === controller) {
-        voiceRequestRef.current = null;
-        setIsVoiceRequesting(false);
-      }
-    }
-  };
-
   const handleMouseDown = (e) => {
     e.preventDefault();
     isDraggingRef.current = true;
@@ -428,8 +268,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
   const inputTextAlign = isRtl ? 'text-right' : 'text-left';
   const plusPositionClass = isRtl ? 'right-4' : 'left-4';
   const actionPositionClass = isRtl ? 'left-3' : 'right-3';
-  const inputPaddingClass = isRtl ? 'pr-14 pl-36' : 'pl-14 pr-36';
-  const micIndicatorPositionClass = isRtl ? '-left-0.5' : '-right-0.5';
+  const inputPaddingClass = isRtl ? 'pr-14 pl-16' : 'pl-14 pr-16';
   const botAvatarMarginClass = isRtl ? 'ml-3' : 'mr-3';
   const botTimestampAlignClass = isRtl ? 'text-right' : 'text-left';
   const rightPanelClass = embedded
@@ -455,7 +294,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
             style={{ width: compact ? '100%' : isDesktop ? `${leftWidth}%` : '100%' }}
           >
             <div className={`flex-1 flex flex-col ${compact ? 'p-3' : 'p-8'} bg-white min-h-0`}>
-              {!hasUserMessage && !isVoiceModeOpen && (
+              {!hasUserMessage && (
                 <div className="text-center">
                   <div className={`relative ${compact ? 'mb-3' : 'mb-6'}`}>
                   <div className={`${compact ? 'w-10 h-10 rounded-xl' : 'w-20 h-20 rounded-[28px]'} bg-gradient-to-br from-[#DC2626] to-[#B91C1C] flex items-center justify-center shadow-[0_12px_24px_rgba(185, 28, 28,0.25)] mx-auto ring-1 ring-white/60`}>
@@ -486,46 +325,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
               )}
 
               <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hidden">
-                {isVoiceModeOpen && (
-                  <div className="flex min-h-full w-full flex-col items-center bg-white px-4 pt-2 text-center" dir="ltr">
-                    <div className="flex w-full justify-start">
-                      <button
-                        type="button"
-                        onClick={handleBackToTextChat}
-                        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                        aria-label={t('startChatting.chat.backToTextChat')}
-                        title={t('startChatting.chat.backToTextChat')}
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <Suspense fallback={<div className="h-64 w-64 animate-pulse rounded-full bg-slate-100" />}>
-                      <VoiceOrbCanvas
-                        source={voiceConversation.source}
-                        onError={() => setVoiceError(t('startChatting.chat.voiceOrbUnavailable'))}
-                        className="h-64 w-64 max-w-full"
-                      />
-                    </Suspense>
-                    <p className="-mt-2 text-sm font-medium text-slate-800" aria-live="polite">
-                      {voiceError || (voiceIsConnecting
-                        ? t('startChatting.chat.voiceConnecting')
-                        : voiceIsConnected && voiceConversation.isSpeaking
-                          ? t('startChatting.chat.voiceSpeaking')
-                          : voiceIsConnected && voiceConversation.isListening
-                            ? t('startChatting.chat.voiceListening')
-                            : t('startChatting.chat.voiceDisconnected'))}
-                    </p>
-                    {voiceError ? (
-                      <button type="button" onClick={handleBackToTextChat} className="mt-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100">
-                        {t('startChatting.chat.closeVoiceChat')}
-                      </button>
-                    ) : voiceIsActive && (
-                      <button type="button" onClick={handleVoiceChatClick} className="mt-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
-                        {t('startChatting.chat.endVoiceChat')}
-                      </button>
-                    )}
-                  </div>
-                )}
                 {messages.map((msg, idx) => (
                   <div key={msg.id || idx} className={`mb-4 flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.type === 'bot' && (
@@ -549,19 +348,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
                         >
                           {msg.type === 'bot' ? renderBotMarkdown(msg.text) : msg.text}
                         </div>
-                        {msg.type === 'bot' && (
-                          <button
-                            onClick={() => handleSpeak(msg.text, idx)}
-                            className={`mt-1 h-7 w-7 rounded-full flex items-center justify-center transition-colors ${
-                              speakingIndex === idx
-                                ? 'bg-[#DC2626] text-white'
-                                : 'bg-white text-[#DC2626] hover:bg-[#eaf1ff]'
-                            }`}
-                            aria-label={t('startChatting.chat.speakMessage')}
-                          >
-                            <Volume2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
                       </div>
                       {msg.time && (
                         <div
@@ -592,7 +378,7 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
               </div>
             </div>
 
-            {!isVoiceModeOpen && <div className={`bg-white ${compact ? 'p-3' : 'p-4'}`}>
+            <div className={`bg-white ${compact ? 'p-3' : 'p-4'}`}>
               <div className="relative max-w-3xl mx-auto group">
                 <div className="absolute -inset-3 rounded-3xl bg-gradient-to-r from-[#e6efff] via-[#f5f7ff] to-[#e9f2ff] opacity-0 blur-lg transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="relative rounded-2xl transition-all duration-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_30px_rgba(220, 38, 38,0.18)]">
@@ -618,34 +404,6 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
                 </button>
                 <div className={`absolute ${actionPositionClass} top-1/2 -translate-y-1/2 flex gap-2`}>
                   <button
-                    onClick={handleMicClick}
-                    disabled={voiceIsActive}
-                    className={`relative ${compact ? 'p-1.5' : 'p-2'} rounded-lg transition-colors ${
-                      isListening ? 'bg-[#16a34a]/10 text-[#16a34a]' : 'hover:bg-gray-200 text-gray-500'
-                    }`}
-                    aria-pressed={isListening}
-                    aria-label={t('startChatting.chat.voiceInput')}
-                  >
-                    <Mic className={`${compact ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                    {isListening && (
-                      <span className={`absolute -top-0.5 ${micIndicatorPositionClass} h-2.5 w-2.5 rounded-full bg-[#16a34a] ring-2 ring-white`} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleVoiceChatClick}
-                    className={`rounded-lg ${compact ? 'p-1.5' : 'p-2'} transition-colors ${isVoiceModeOpen ? 'bg-[#DC2626]/10 text-[#DC2626]' : 'text-gray-500 hover:bg-gray-200'}`}
-                    aria-label={isVoiceModeOpen
-                      ? voiceIsActive ? t('startChatting.chat.endVoiceChat') : t('startChatting.chat.closeVoiceChat')
-                      : t('startChatting.chat.openVoiceChat')}
-                    aria-pressed={isVoiceModeOpen}
-                    title={isVoiceModeOpen
-                      ? voiceIsActive ? t('startChatting.chat.endVoiceChat') : t('startChatting.chat.closeVoiceChat')
-                      : t('startChatting.chat.openVoiceChat')}
-                  >
-                    <AudioLines className={`${compact ? 'h-4 w-4' : 'h-5 w-5'}`} />
-                  </button>
-                  <button
                     onClick={handleSendMessage}
                     className={`${compact ? 'p-2' : 'p-2.5'} bg-[#DC2626] hover:bg-[#B91C1C] rounded-lg transition-all`}
                     aria-label={t('startChatting.chat.sendMessage')}
@@ -655,15 +413,10 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
                 </div>
                 </div>
               </div>
-              {micError && (
-                <p className="text-xs text-red-500 text-center mt-2">
-                  {micError}
-                </p>
-              )}
               <p className={`${compact ? 'mt-2 text-[9px]' : 'mt-3 text-xs'} text-center text-gray-400`}>
                {t('startChatting.chat.assistantDisclaimer')}
               </p>
-            </div>}
+            </div>
           </div>
 
           {/* Resizer - Desktop Only */}
@@ -787,6 +540,8 @@ const StartChattingContent = ({ embedded = false, compact = false }) => {
         isOpen={isRequirementModalOpen}
         onClose={() => setIsRequirementModalOpen(false)}
         onSend={handleRequirementSend}
+        defaultMode="typing"
+        allowVoice={false}
       />
 
       {showVideoPopup && (

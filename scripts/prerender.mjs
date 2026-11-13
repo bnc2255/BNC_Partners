@@ -1,17 +1,17 @@
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { resolve, extname, dirname } from 'node:path';
+import { resolve, extname, dirname, sep } from 'node:path';
 import { chromium as playwright } from 'playwright-core';
 import chromium from '@sparticuz/chromium';
 const site=JSON.parse(await readFile('src/seo/site.json','utf8'));
-const root=resolve('dist');
+const root=resolve(process.env.PRERENDER_OUTPUT_DIR || 'dist');
 const shell=await readFile(resolve(root,'index.html'),'utf8');
 const mime={'.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.woff2':'font/woff2'};
 const server=createServer(async(req,res)=>{
   try {
     const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
     const file=resolve(root,'.'+pathname);
-    if (!file.startsWith(root+'/')) { res.setHeader('Content-Type','text/html');return res.end(shell); }
+    if (!file.startsWith(root+sep)) { res.setHeader('Content-Type','text/html');return res.end(shell); }
     if ((await stat(file).catch(()=>null))?.isFile()) {res.setHeader('Content-Type',mime[extname(file)]||'application/octet-stream');return res.end(await readFile(file));}
     res.setHeader('Content-Type','text/html');res.end(shell);
   }catch{res.statusCode=500;res.end('Build preview failed');}
@@ -21,7 +21,10 @@ const base='http://127.0.0.1:'+server.address().port;
 let browser;
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 try {
-  browser=await playwright.launch({executablePath:process.env.PRERENDER_CHROME_PATH||await chromium.executablePath(),args:chromium.args,headless:true});
+  const localChrome = process.platform === 'win32'
+    ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+    : await chromium.executablePath();
+  browser=await playwright.launch({executablePath:process.env.PRERENDER_CHROME_PATH||localChrome,args:chromium.args,headless:true});
   const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});
   await context.addInitScript(()=>{window.__PRERENDER__=true;});
   // Third-party embeds/media never determine whether a public page can be published.

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/prepare-seo.mjs && vite build && node scripts/prerender.mjs",
+    "build": "npm run typecheck:api && node scripts/prepare-seo.mjs && vite build && node scripts/prerender.mjs",
+    "typecheck:api": "tsc --project tsconfig.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:vercel": "dotenv -e .env.local -- npx vercel dev",
@@ -20,7 +21,6 @@
     "test:seo": "node scripts/verify-seo.mjs"
   },
   "dependencies": {
-    "@elevenlabs/react": "^1.15.2",
     "@supabase/supabase-js": "^2.97.0",
     "@tailwindcss/vite": "^4.1.18",
     "@xyflow/react": "^12.11.0",

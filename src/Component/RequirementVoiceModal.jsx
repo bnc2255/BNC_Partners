@@ -6,13 +6,14 @@ const RequirementVoiceModal = ({
   isOpen,
   onClose,
   onSend,
-  defaultMode = 'voice'
+  defaultMode = 'voice',
+  allowVoice = true
 }) => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
   const textAlign = isRtl ? 'text-right' : 'text-left';
   const rowDirection = isRtl ? 'flex-row-reverse' : 'flex-row';
-  const [mode, setMode] = useState(defaultMode);
+  const [mode, setMode] = useState(allowVoice ? defaultMode : 'typing');
   const [requirement, setRequirement] = useState('');
   const [interimText, setInterimText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -36,7 +37,7 @@ const RequirementVoiceModal = ({
       if (typeof error.hint === 'string' && error.hint.trim()) return error.hint;
       try {
         return JSON.stringify(error);
-      } catch (jsonError) {
+      } catch {
         return 'Failed to submit requirement.';
       }
     }
@@ -45,7 +46,7 @@ const RequirementVoiceModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setMode(defaultMode);
+      setMode(allowVoice ? defaultMode : 'typing');
       setRequirement('');
       setInterimText('');
       setMicError('');
@@ -54,7 +55,7 @@ const RequirementVoiceModal = ({
       setIsSending(false);
       setRecordedAudioFile(null);
     }
-  }, [isOpen, defaultMode]);
+  }, [isOpen, defaultMode, allowVoice]);
 
   const stopAudioStream = () => {
     if (!mediaStreamRef.current) return;
@@ -116,7 +117,7 @@ const RequirementVoiceModal = ({
       mediaRecorderRef.current = recorder;
       recorder.start();
       return true;
-    } catch (error) {
+    } catch {
       stopAudioStream();
       setMicError(t('requirementVoiceModal.errors.notSupported'));
       return false;
@@ -124,7 +125,7 @@ const RequirementVoiceModal = ({
   };
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!isOpen || !allowVoice) return undefined;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setMicError(t('requirementVoiceModal.errors.notSupported'));
@@ -186,9 +187,10 @@ const RequirementVoiceModal = ({
       stopAudioRecording();
       stopAudioStream();
     };
-  }, [isOpen, isRtl, t]);
+  }, [isOpen, isRtl, t, allowVoice]);
 
   const handleMicToggle = async () => {
+    if (!allowVoice) return;
     if (!recognitionRef.current) {
       setMicError(t('requirementVoiceModal.errors.notSupported'));
       return;
@@ -259,7 +261,7 @@ const RequirementVoiceModal = ({
 
         <div className="px-6 pt-5">
           <div className={`flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100 ${rowDirection}`}>
-            <button
+            {allowVoice && <button
               onClick={() => setMode('voice')}
               className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                 mode === 'voice'
@@ -269,7 +271,7 @@ const RequirementVoiceModal = ({
             >
               <AudioLines className="h-4 w-4" />
               {t('requirementVoiceModal.voice')}
-            </button>
+            </button>}
             <button
               onClick={() => setMode('typing')}
               className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
