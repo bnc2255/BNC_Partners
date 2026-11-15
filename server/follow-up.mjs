@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { renderEmail } from './follow-up-email.mjs';
+import { createFollowUpHistory } from './follow-up-history.mjs';
 
 const MODEL = 'gpt-5-nano';
-const sentDrafts = new Map();
 const deliveryUrl = 'https://cpaas.zoho.in/v1.1/email';
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
@@ -87,7 +87,15 @@ export async function followUpHandler(request, env, dependencies = {}) {
     if (text.length > 80000) fail('Request is too large.', 413);
     let body;
     try { body = JSON.parse(text); } catch { fail('Request must be valid JSON.'); }
-    if (!['draft', 'send'].includes(body.action)) fail('Choose draft or send.');
+    if (!['draft', 'send', 'history'].includes(body.action)) fail('Choose draft, send or history.');
+    const history = dependencies.history || createFollowUpHistory(db, env);
+    if (body.action === 'history') {
+      if (body.partnerId && !/^[0-9a-f-]{36}$/i.test(body.partnerId)) fail('A valid partner ID is required.');
+      const offset = Number.isInteger(body.offset) && body.offset >= 0 && body.offset <= 100000 ? body.offset : 0;
+      try {
+        return json({ ...await history.list({ partnerId: body.partnerId, offset }), trackingConfigured: Boolean(env.ZOHO_WEBHOOK_AUTH_KEY || env.ZOHO_WEBHOOK_SECRET) });
+      } catch { fail('Email history is unavailable. Check that the follow-up history migration has been applied.', 503); }
+    }
     const signed = body.action === 'send' ? await unseal(body.draftToken, secret) : null;
     if (signed && signed.adminId !== user.id) fail('This draft belongs to another admin.', 403);
     const partnerId = signed?.partnerId || body.partnerId;
@@ -98,21 +106,32 @@ export async function followUpHandler(request, env, dependencies = {}) {
     if (signed) {
       if (body.confirmSend !== true) fail('Sending requires an explicit Send action.');
       if (signed.to !== partner.email || signed.milestoneSnapshot !== milestoneSnapshot) fail('Partner details changed. Generate a fresh draft.', 409);
-      for (const [id, expiresAt] of sentDrafts) if (expiresAt < Date.now()) sentDrafts.delete(id);
-      if (sentDrafts.has(signed.id)) fail('This draft was already submitted. Check ZeptoMail logs before trying again.', 409);
       const settings = zohoSettings(env);
       if (settings.from !== signed.from) fail('Sender changed. Generate a fresh draft.', 409);
-      sentDrafts.set(signed.id, signed.expiresAt);
+      try { await history.claim(signed, user.id); }
+      catch (error) {
+        if (error.code === '23505') fail('This draft was already submitted. Check its email history before trying again.', 409);
+        fail('Could not record the email attempt. No email was sent. Check the history database setup.', 503);
+      }
+      const recordFailure = async (status, message) => {
+        try { await history.result(signed.id, status, null, message); } catch { /* The durable sending record remains available for reconciliation. */ }
+        fail(message, 502);
+      };
       let response;
       try {
         response = await fetcher(settings.url, { method: 'POST', headers: settings.headers, body: JSON.stringify({ from: { address: settings.from, name: 'BNC Global' }, to: [{ email_address: { address: partner.email, name: partner.name } }], subject: signed.subject, htmlbody: signed.html, client_reference: signed.id, track_opens: false, track_clicks: false }), signal: AbortSignal.timeout(20000) });
-      } catch { fail('Delivery status is unknown. Check ZeptoMail logs before sending again.', 502); }
+      } catch { return await recordFailure('unknown', 'Delivery status is unknown. Check ZeptoMail logs before sending again.'); }
       let result;
-      try { result = await response.json(); } catch { fail('Delivery status is unknown. Check ZeptoMail logs before sending again.', 502); }
+      try { result = await response.json(); } catch { return await recordFailure('unknown', 'Delivery status is unknown. Check ZeptoMail logs before sending again.'); }
       if (!response.ok || result.error || !result.request_id) {
-        fail('ZeptoMail did not accept the email. Check the API token, verified sender domain and ZeptoMail logs before trying again.', 502);
+        return await recordFailure(response.status >= 400 && response.status < 500 ? 'failed' : 'unknown', 'ZeptoMail did not confirm acceptance. Check the API token, verified sender domain and ZeptoMail logs before trying again.');
       }
-      return json({ sent: true, messageId: result.request_id, to: partner.email });
+      let record;
+      try { record = await history.result(signed.id, 'accepted', result.request_id); }
+      catch {
+        return json({ sent: true, messageId: result.request_id, to: partner.email, warning: 'Email was accepted, but the history acknowledgement could not be updated. Check delivery status before sending again.' });
+      }
+      return json({ sent: true, messageId: result.request_id, to: partner.email, record });
     }
     const apiKey = env.OpenAI_key || env.OPENAI_KEY || env.OPENAI_API_KEY;
     if (!apiKey) fail('Set OpenAI_key or OPENAI_API_KEY on the server to generate email drafts.', 503);

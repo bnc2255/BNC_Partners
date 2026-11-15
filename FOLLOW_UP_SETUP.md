@@ -68,8 +68,47 @@ Admin sign-in is required locally and in production. Use `/login?type=admin`.
 - ZeptoMail acceptance is shown as submitted for delivery, not proof of inbox delivery.
 - No email is sent automatically, and delivery requests are never automatically retried.
   If delivery status is unknown, check ZeptoMail logs before sending again.
-- Duplicate submission protection is per running function instance. There is no
-  persistent send history or cross-instance idempotency store in this change.
+- Each send is claimed in `crm_follow_up_emails` before contacting ZeptoMail.
+  The unique draft ID prevents duplicate submissions across Vercel instances.
+  If the history database is unavailable, the email is not sent.
+
+## Sent and delivery history
+
+Follow-ups shows overall sent/delivered counts and each partner's sent count,
+latest status and last-sent time. Select a partner to see timestamped email
+history. History refreshes every 20 seconds and after a batch finishes. It starts
+with sends made after this tracking update; previous untracked emails are not
+retroactively treated as sent or delivered.
+
+The Supabase migration is `supabase/migrations/20261115185339_crm_follow_up_email_history.sql`.
+It creates admin-readable history tables, service-only writes, a summary function,
+and atomic delivery-event handling. The migration has been applied to the linked
+project. Apply it to any separate database before deploying there. The stored
+history contains recipients, subjects and status metadata; it does not store full
+generated email bodies.
+
+### Enable real delivery confirmations
+
+1. Set a server-only `ZOHO_WEBHOOK_AUTH_KEY` in Vercel, then redeploy.
+2. In the ZeptoMail/Zoho CPaaS India agent, open **Webhooks → Authentication Key**
+   and set that exact same value.
+3. Configure the webhook URL:
+   `https://partners.bncglobal.in/api/zeptomail-webhook`.
+4. Enable **Delivered**, **Soft bounces**, **Hard bounces**, and **Feedback loop**.
+   Opens/clicks are not enabled by this integration.
+
+The endpoint validates Zoho's `producer-signature` HMAC-SHA256 header and timestamp.
+It accepts both signed JSON and Zoho's form-encoded payloads. Duplicate callbacks
+and older events cannot replace newer delivery states. GET/HEAD return a reachability
+response for Zoho's URL verification; POST requires authentication. As an alternative
+to HMAC, set `ZOHO_WEBHOOK_SECRET` and configure the webhook's `Authorization` header
+to `Bearer <same secret>`; when an Authentication Key is set, HMAC is required.
+
+`Sent / awaiting delivery` means ZeptoMail accepted the API request. `Delivered`
+means the recipient's mail server accepted the email; it does not confirm inbox
+placement or that the person read it. Bounces and unknown delivery outcomes remain
+distinct. Until the webhook is configured, sending history still works and the UI
+shows that delivery confirmation needs setup.
 
 Run `node --test server/follow-up.test.mjs` for provider-mocked tests. These tests
 never send live emails.
@@ -78,3 +117,7 @@ Run `node --test server/follow-up-batch.test.mjs` for batch concurrency and erro
 isolation. With `npm run dev` running, `node scripts/verify-follow-up-ui.mjs`
 checks filters, selection, the modal and drawer, mobile controls, previewing and
 partial send failures using synthetic data and mocked providers only.
+
+Run `node --test server/zeptomail-webhook.test.mjs` for callback authentication
+and parsing. `supabase/tests/crm_follow_up_history.sql` verifies admin access,
+duplicate events and out-of-order state updates in a rolled-back transaction.

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Search, ExternalLink, FileSpreadsheet, Mail } from "lucide-react";
 import { exportPartnersToExcel } from "../src/lib/exportExcel";
+import { EmailStatusBadge } from './FollowUpEmailHistory';
+import { formatEmailDate } from '../src/crm/emailStatus';
 
 const statusStyles = {
   Complete: { color: "#5e81f4", bg: "rgba(94,129,244,0.10)" },
@@ -21,7 +23,7 @@ function StatusBadge({ value }) {
   );
 }
 
-function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onViewPartner, onFollowUp, onBulkFollowUp, onNameClick, title = 'Partner CRM', subtitle }) {
+function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onViewPartner, onFollowUp, onBulkFollowUp, onNameClick, title = 'Partner CRM', subtitle, topContent, emailSummary }) {
   const [search, setSearch] = useState("");
   const [profileFilter, setProfileFilter] = useState('all');
   const [agreementFilter, setAgreementFilter] = useState('all');
@@ -83,6 +85,7 @@ function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onView
           </button>
         </div>
 
+        {topContent}
         {onBulkFollowUp && <>
           <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
             <label className="flex flex-col gap-1.5 text-xs font-semibold text-slate-600">AI profile
@@ -105,6 +108,7 @@ function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onView
                 {onBulkFollowUp && <th className="px-4 py-3"><input type="checkbox" aria-label="Select all eligible filtered partners" checked={allSelected} disabled={!eligibleRows.length} ref={element => { if (element) element.indeterminate = selected.length > 0 && !allSelected; }} onChange={toggleAll} className="size-4 accent-[#5e81f4]" /></th>}
                 <th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Partner Name</th>
                 <th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Email</th>
+                {emailSummary && <><th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Emails sent</th><th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Delivery status</th><th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Last sent</th></>}
                 <th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Phone</th>
                 <th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">Country</th>
                 <th className="text-left px-4 py-3 text-[#5e81f4] text-[12px] font-bold">City</th>
@@ -130,6 +134,7 @@ function PartnerCRMTable({ partners = [], adminLabel = "Admin", onLogout, onView
                     {onNameClick ? <button onClick={() => onNameClick(partner)} className="min-h-11 text-left hover:text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600">{partner.name || '-'}</button> : partner.name || '-'}
                   </div></td>
                   <td className="px-4 py-3 whitespace-nowrap text-[#5e81f4] text-[12px]">{partner.email || "-"}</td>
+                  {emailSummary && <><td className="px-4 py-3 text-sm text-slate-700">{emailSummary[partner.id]?.sent_count || 0}</td><td className="px-4 py-3 whitespace-nowrap"><EmailStatusBadge status={emailSummary[partner.id]?.latest_status} /></td><td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{formatEmailDate(emailSummary[partner.id]?.last_sent_at)}</td></>}
                   <td className="px-4 py-3 whitespace-nowrap text-[#1c1d21] text-[12px]">{partner.phone || "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-[#1c1d21] text-[12px]">{partner.country || "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-[#1c1d21] text-[12px]">{partner.city || "-"}</td>

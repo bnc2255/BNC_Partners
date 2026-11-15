@@ -141,6 +141,7 @@ const AdminDashboard = () => {
   const [loadError, setLoadError] = useState('');
   const [activeView, setActiveView] = useState(() => new URLSearchParams(window.location.search).get('view') === 'followups' ? 'followups' : 'dashboard');
   const [emailPartners, setEmailPartners] = useState(null);
+  const [emailHistoryRefresh, setEmailHistoryRefresh] = useState(0);
   const openFollowUp = value => setEmailPartners(Array.isArray(value) ? value : [value]);
   const [activeCampaignId, setActiveCampaignId] = useState(null);
   const [selectedPartner, setSelectedPartner] = useState(null);
@@ -392,7 +393,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="h-screen bg-[#f5f5fa] flex overflow-hidden">
-      {emailPartners && <FollowUpComposer partners={emailPartners.map(partner => mappedPartners.find(p => p.id === partner.id) || partner)} onClose={() => setEmailPartners(null)} />}
+      {emailPartners && <FollowUpComposer partners={emailPartners.map(partner => mappedPartners.find(p => p.id === partner.id) || partner)} onClose={() => setEmailPartners(null)} onSendComplete={() => setEmailHistoryRefresh(value => value + 1)} />}
       <NavSidebar activeView={activeView === 'campaignBuilder' ? 'campaigns' : activeView} onViewChange={handleViewChange} />
 
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
@@ -410,7 +411,7 @@ const AdminDashboard = () => {
             onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp}
           />
         ) : activeView === 'followups' ? (
-          <PartnerFollowUps partners={mappedPartners} adminLabel={adminData?.adminId || adminData?.email || 'Admin'} onLogout={handleLogout} onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp} />
+          <PartnerFollowUps refreshKey={emailHistoryRefresh} partners={mappedPartners} adminLabel={adminData?.adminId || adminData?.email || 'Admin'} onLogout={handleLogout} onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp} />
         ) : activeView === 'submissions' ? (
           <FormSubmissionsView />
         ) : activeView === 'leads' ? (

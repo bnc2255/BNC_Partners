@@ -27,6 +27,7 @@ dist-ssr
 supabase/migrations/
 !supabase/migrations/
 !supabase/migrations/20260503120000_update_voice_requirement_recipient_policy.sql
+!supabase/migrations/20261115185339_crm_follow_up_email_history.sql
 supabase/.temp/
 supabase/dumps/
 supabase/schema.sql

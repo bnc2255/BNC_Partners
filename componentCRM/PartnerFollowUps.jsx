@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Circle, Loader2, Mail, Send, X } from 'lucide-react';
-import { supabase } from '../src/lib/supabaseClient';
+import { followUpRequest } from '../src/crm/followUpApi';
+import { useFollowUpEmailHistory } from '../src/crm/useFollowUpEmailHistory';
+import { EmailHistory, EmailHistoryOverview } from './FollowUpEmailHistory';
 import { PartnerCRMTable } from './PartnerCRMTable';
 import { runFollowUpBatch } from '../src/crm/followUpBatch';
 
@@ -10,17 +12,6 @@ const getMilestones = partner => [
   { id: 'agreement', label: 'Partner agreement signed', complete: partner.agreementStatus === 'Signed', description: 'Digital signature on the partner agreement' },
 ];
 
-async function followUpRequest(body) {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session) throw new Error('Please sign in as an admin before generating a follow-up.');
-  const response = await fetch('/api/follow-up', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(body),
-  });
-  if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('The follow-up API is unavailable. Restart the dev server or check the Vercel function.');
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Could not complete the follow-up request.');
-  return result;
-}
 
 function useFollowUpDialog(onClose, busy, drawer = false) {
   const dialog = useRef(null);
@@ -46,7 +37,7 @@ function useFollowUpDialog(onClose, busy, drawer = false) {
 
 const statusLabel = { idle: 'Not drafted', drafting: 'Preparing draft…', ready: 'Ready to send', 'draft-error': 'Draft failed', sending: 'Sending…', sent: 'Accepted by ZeptoMail', 'send-error': 'Check delivery status' };
 
-export function FollowUpComposer({ partners, onClose }) {
+export function FollowUpComposer({ partners, onClose, onSendComplete }) {
   const [entries, setEntries] = useState(() => partners.map(partner => ({ partner, status: 'idle', draft: null, error: '' })));
   const [activeId, setActiveId] = useState(partners[0].id);
   const [busy, setBusy] = useState('');
@@ -80,9 +71,9 @@ export function FollowUpComposer({ partners, onClose }) {
     ready.forEach(entry => update(entry.partner.id, { status: 'sending', error: '' }));
     try {
       await runFollowUpBatch(ready, entry => followUpRequest({ action: 'send', draftToken: entry.draft.draftToken, confirmSend: true }), result => {
-        update(result.item.partner.id, result.status === 'fulfilled' ? { status: 'sent', error: '' } : { status: 'send-error', error: result.error.message });
+        update(result.item.partner.id, result.status === 'fulfilled' ? { status: 'sent', record: result.value.record, error: result.value.warning || '' } : { status: 'send-error', error: result.error.message });
       });
-    } finally { inFlight.current = false; setBusy(''); }
+    } finally { inFlight.current = false; setBusy(''); onSendComplete?.(); }
   };
 
   const completed = busy === 'draft' ? entries.filter(entry => entry.status !== 'drafting').length : entries.filter(entry => ['sent', 'send-error'].includes(entry.status)).length;
@@ -104,6 +95,8 @@ export function FollowUpComposer({ partners, onClose }) {
             <dl className="grid grid-cols-[48px_1fr] gap-2 rounded-xl bg-slate-50 p-4 text-sm"><dt className="text-slate-500">To</dt><dd className="break-all">{active.draft?.to || active.partner.email}</dd><dt className="text-slate-500">From</dt><dd className="break-all">{active.draft?.from || 'noreply@bncglobal.in'}</dd></dl>
             {sentCount > 0 && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{sentCount} of {entries.length} emails accepted by ZeptoMail.{errors ? ` ${errors} need attention; review the recipient statuses.` : ''}</p>}
             {active.draft ? <><h3 className="text-sm font-bold">{active.draft.subject}</h3><iframe title="HTML follow-up email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={active.draft.html.replace(/<head[^>]*>/i, '$&<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src https://xsxiuvqgngikzvchjnxq.supabase.co; style-src &#39;unsafe-inline&#39;;">')} className="h-[max(380px,55dvh)] w-full rounded-xl border border-slate-200 bg-white" /><p className="text-xs text-slate-500">{active.status === 'sent' ? 'Submitted for delivery.' : active.status === 'send-error' ? 'Check ZeptoMail logs before attempting another send.' : 'Draft expires in 30 minutes. Nothing is sent until you click Send.'}</p></> : <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center"><Mail size={30} className="mb-4 text-[#5e81f4]" /><h3 className="font-bold">{active.status === 'drafting' ? 'Preparing a personal reminder…' : 'Ready to draft a follow-up'}</h3><p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">Generate personalised HTML drafts, then review each recipient before sending.</p></div>}
+            {active.status === 'sent' && active.record?.sent_at && <p className="text-xs text-slate-500">Sent {new Date(active.record.sent_at).toLocaleString()} / {active.record.status === 'delivered' ? 'Delivered' : 'Awaiting delivery confirmation'}</p>}
+            {attempted && <EmailHistory partnerId={active.partner.id} />}
             {active.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{active.error}</p>}
           </section>
         </div>
@@ -129,15 +122,17 @@ function PartnerJourneyWindow({ partner, onClose, onFollowUp }) {
   const milestones = getMilestones(partner);
   const completed = milestones.filter(item => item.complete).length;
   const draft = () => { onClose(); onFollowUp(partner); };
-  return <dialog ref={dialog} onCancel={event => { event.preventDefault(); close(); }} aria-labelledby="partner-journey-title" className="fixed inset-0 m-auto max-h-[90dvh] w-[min(680px,calc(100%-24px))] overflow-hidden rounded-2xl border-0 bg-white p-0 text-[#1c1d21] shadow-2xl backdrop:bg-slate-950/40"><div className="flex max-h-[90dvh] flex-col"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-6"><div><p className="text-xs font-bold uppercase tracking-wider text-[#5e81f4]">Partner journey</p><h2 id="partner-journey-title" className="mt-2 text-2xl font-bold">{partner.name}</h2><p className="mt-2 break-all text-sm text-slate-500">{partner.email}</p></div><button autoFocus onClick={close} aria-label="Close partner journey" className="flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-slate-100"><X size={20} /></button></header><div className="min-h-0 overflow-y-auto p-6"><div className="mb-7 border-b border-slate-100 pb-5"><div className="mb-3 flex justify-between text-sm"><span className="font-semibold">Onboarding progress</span><span className="text-slate-500">{completed} of {milestones.length} complete</span></div><progress aria-label="Onboarding completion" value={completed} max={milestones.length} className="h-2 w-full accent-[#5e81f4]" /></div><MilestoneList milestones={milestones} onDraft={draft} />{completed === milestones.length && <p className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">All set. This partner has completed onboarding.</p>}</div><footer className="flex shrink-0 justify-end border-t border-slate-100 p-4"><button onClick={close} className="min-h-11 rounded-lg border border-slate-200 px-5 text-sm font-semibold">Close</button></footer></div></dialog>;
+  return <dialog ref={dialog} onCancel={event => { event.preventDefault(); close(); }} aria-labelledby="partner-journey-title" className="fixed inset-0 m-auto max-h-[90dvh] w-[min(680px,calc(100%-24px))] overflow-hidden rounded-2xl border-0 bg-white p-0 text-[#1c1d21] shadow-2xl backdrop:bg-slate-950/40"><div className="flex max-h-[90dvh] flex-col"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-6"><div><p className="text-xs font-bold uppercase tracking-wider text-[#5e81f4]">Partner journey</p><h2 id="partner-journey-title" className="mt-2 text-2xl font-bold">{partner.name}</h2><p className="mt-2 break-all text-sm text-slate-500">{partner.email}</p></div><button autoFocus onClick={close} aria-label="Close partner journey" className="flex size-11 shrink-0 items-center justify-center rounded-lg hover:bg-slate-100"><X size={20} /></button></header><div className="min-h-0 overflow-y-auto p-6"><div className="mb-7 border-b border-slate-100 pb-5"><div className="mb-3 flex justify-between text-sm"><span className="font-semibold">Onboarding progress</span><span className="text-slate-500">{completed} of {milestones.length} complete</span></div><progress aria-label="Onboarding completion" value={completed} max={milestones.length} className="h-2 w-full accent-[#5e81f4]" /></div><MilestoneList milestones={milestones} onDraft={draft} /><div className="mt-7 border-t border-slate-100 pt-5"><EmailHistory partnerId={partner.id} /></div>{completed === milestones.length && <p className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">All set. This partner has completed onboarding.</p>}</div><footer className="flex shrink-0 justify-end border-t border-slate-100 p-4"><button onClick={close} className="min-h-11 rounded-lg border border-slate-200 px-5 text-sm font-semibold">Close</button></footer></div></dialog>;
 }
 
-export function PartnerFollowUps({ partners, adminLabel, onLogout, onFollowUp, onBulkFollowUp }) {
+export function PartnerFollowUps({ partners, adminLabel, onLogout, onFollowUp, onBulkFollowUp, refreshKey }) {
   const [selectedId, setSelectedId] = useState(null);
   const selected = partners.find(p => p.id === selectedId);
   const pendingCount = partners.filter(p => getMilestones(p).some(m => !m.complete)).length;
+  const history = useFollowUpEmailHistory({ refreshKey });
+  const emailSummary = Object.fromEntries((history.data?.summary?.partners || []).map(row => [row.partner_id, row]));
   return <>
-    <PartnerCRMTable partners={partners} adminLabel={adminLabel} onLogout={onLogout} onFollowUp={onFollowUp} onBulkFollowUp={onBulkFollowUp} onNameClick={partner => setSelectedId(partner.id)} title="Follow-ups" subtitle={`${pendingCount} partners have unfinished onboarding / Select a name to view milestones`} />
+    <PartnerCRMTable partners={partners} adminLabel={adminLabel} onLogout={onLogout} onFollowUp={onFollowUp} onBulkFollowUp={onBulkFollowUp} onNameClick={partner => setSelectedId(partner.id)} emailSummary={emailSummary} topContent={<EmailHistoryOverview history={history} />} title="Follow-ups" subtitle={`${pendingCount} partners have unfinished onboarding / Select a name to view milestones`} />
     {selected && <PartnerJourneyWindow partner={selected} onClose={() => setSelectedId(null)} onFollowUp={onFollowUp} />}
   </>;
 }

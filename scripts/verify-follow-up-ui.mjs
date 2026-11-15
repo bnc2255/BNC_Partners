@@ -34,12 +34,22 @@ try {
   });
   let drafts = 0;
   let sends = 0;
+  const emailRecords = [{ id: 501, partner_id: ids[0], subject: 'Previous follow-up', recipient_email: rows[0].email, status: 'delivered', sent_at: '2026-11-15T10:00:00Z', delivered_at: '2026-11-15T10:01:00Z', attempted_at: '2026-11-15T10:00:00Z' }];
   await page.route('**/api/follow-up', route => {
     const body = route.request().postDataJSON();
+    if (body.action === 'history') {
+      const records = emailRecords.filter(row => !body.partnerId || row.partner_id === body.partnerId);
+      const sent = emailRecords.filter(row => row.sent_at).length;
+      const partners = ids.map(id => { const records = emailRecords.filter(row => row.partner_id === id); return { partner_id: id, sent_count: records.filter(row => row.sent_at).length, delivered_count: records.filter(row => row.delivered_at).length, last_sent_at: records.find(row => row.sent_at)?.sent_at, latest_status: records[0]?.status }; });
+      return route.fulfill({ json: { rows: records, count: records.length, summary: { totals: { sent, delivered: 1, pending: sent - 1 }, partners }, trackingConfigured: true } });
+    }
     if (body.action === 'send') {
       sends++;
+      const partnerId = body.draftToken.slice(6);
       if (body.draftToken === `draft-${ids[1]}`) return route.fulfill({ status: 502, json: { error: 'Mock delivery status unknown. Check ZeptoMail logs.' } });
-      return route.fulfill({ json: { sent: true, messageId: `mock-${sends}` } });
+      const record = { id: 501 + sends, partner_id: partnerId, subject: 'New follow-up', recipient_email: rows[ids.indexOf(partnerId)].email, status: 'accepted', sent_at: new Date().toISOString(), attempted_at: new Date().toISOString() };
+      emailRecords.unshift(record);
+      return route.fulfill({ json: { sent: true, messageId: `mock-${sends}`, record } });
     }
     drafts++;
     const i = ids.indexOf(body.partnerId);
@@ -48,10 +58,12 @@ try {
     return route.fulfill({ json: { subject: `Follow-up for ${partner.name}`, html, to: partner.email, from: 'noreply@bncglobal.in', draftToken: `draft-${partner.id}` } });
   });
   await page.goto(`${process.env.CRM_TEST_URL || 'http://localhost:5173'}/admin-dashboard?view=followups`);
-  await page.getByRole('heading', { name: 'Follow-ups', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByRole('heading', { name: 'Follow-ups', exact: true }).waitFor({ timeout: 30000 }).catch(() => { throw new Error(`Follow-ups did not render at ${page.url()}: ${errors.join('; ')}`); });
   assert.equal(await page.locator('tbody tr').count(), 4);
   await page.getByRole('button', { name: 'Alpha Partner', exact: true }).click();
   await page.getByRole('dialog', { name: 'Alpha Partner' }).waitFor();
+  await page.getByText('Previous follow-up', { exact: true }).waitFor();
+  await page.getByText('Delivery confirmed:', { exact: false }).waitFor();
   assert.equal(await page.locator('tbody tr').count(), 4, 'Journey keeps the table mounted');
   await page.getByRole('button', { name: 'Close partner journey' }).click();
   await page.getByLabel('Filter agreement').selectOption('unsigned');
@@ -85,8 +97,18 @@ try {
   await page.getByText('2 of 3 emails accepted by ZeptoMail.', { exact: false }).waitFor();
   assert.equal(sends, 3);
   assert.equal(await page.getByRole('button', { name: /^Send \d+ emails$/ }).count(), 0, 'No automatic resending of attempted recipients');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('region', { name: 'Email delivery totals' }).getByText('Sent', { exact: true }).locator('..').getByText('3', { exact: true }).waitFor();
+  const alpha = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Alpha Partner', exact: true }) });
+  assert.equal((await alpha.getByRole('cell').nth(3).textContent()).trim(), '2');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: `${process.env.TEMP}/bnc-tracking-table-final.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Alpha Partner', exact: true }).click();
+  await page.getByText('New follow-up', { exact: true }).waitFor();
+  await page.getByText('Previous follow-up', { exact: true }).waitFor();
+  await page.screenshot({ path: `${process.env.TEMP}/bnc-tracking-history-final.png`, fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('Journey modal, combined filters, Select All, personalised previews, right drawer, mobile footer and partial delivery statuses passed. Real emails sent: 0.');
+  console.log('Journey modal, filters, bulk sending, mobile footer, persisted history, sent/delivery totals and refreshed partner statuses passed. Real emails sent: 0.');
 } finally {
   await browser.close();
 }

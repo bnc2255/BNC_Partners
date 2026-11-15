@@ -7,8 +7,20 @@ const partnerId = '12345678-1234-1234-1234-123456789abc';
 const env = { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'server-only-secret', OPENAI_API_KEY: 'server-openai-secret', OpenAI_model: 'a-different-model', ZOHO_TOKEN: 'server-zoho-token', ZOHO_ACCOUNT_ID: 'mailbox', ZOHO_FROM_ADDRESS: 'noreply@bncglobal.in' };
 
 function fixture({ isAdmin = true, complete = false, authValid = true } = {}) {
-  const state = { complete, modelCalls: 0, sends: [], modelRequest: null };
+  const state = { complete, modelCalls: 0, sends: [], modelRequest: null, records: new Map() };
   const deps = {
+    history: {
+      async claim(draft) {
+        if (state.records.has(draft.id)) throw Object.assign(new Error('Duplicate'), { code: '23505' });
+        const record = { draft_id: draft.id, status: 'sending', sent_at: null };
+        state.records.set(draft.id, record); return record;
+      },
+      async result(id, status, requestId) {
+        const record = { ...state.records.get(id), status, provider_request_id: requestId, sent_at: status === 'accepted' ? new Date().toISOString() : null };
+        state.records.set(id, record); return record;
+      },
+      async list() { return { rows: [...state.records.values()], count: state.records.size, summary: { totals: { attempts: state.records.size }, partners: [] } }; },
+    },
     db: {
       auth: { getUser: async () => ({ data: { user: authValid ? { id: 'admin-1' } : null }, error: null }) },
       from(table) {
@@ -74,6 +86,8 @@ test('requires explicit send, rejects tampering, and sends exactly the reviewed 
   assert.equal(f.state.sends.length, 0);
   const sent = await f.call({ action: 'send', draftToken: draft.draftToken, confirmSend: true, to: 'attacker@example.com', html: '<p>changed</p>' });
   assert.equal(sent.status, 200);
+  assert.equal(sent.body.record.status, 'accepted');
+  assert.ok(sent.body.record.sent_at);
   assert.equal(f.state.sends.length, 1);
   const message = JSON.parse(f.state.sends[0].options.body);
   assert.equal(message.to[0].email_address.address, 'partner@example.com');
@@ -83,6 +97,27 @@ test('requires explicit send, rejects tampering, and sends exactly the reviewed 
   assert.equal(message.track_opens, false);
   assert.match(f.state.sends[0].url, /^https:\/\/cpaas.zoho.in\/v1.1\/email$/);
   assert.equal((await f.call({ action: 'send', draftToken: draft.draftToken, confirmSend: true })).status, 409);
+  assert.equal(f.state.sends.length, 1);
+});
+
+test('history requires an admin and fails closed before sending if history cannot be saved', async () => {
+  const f = fixture();
+  assert.equal((await f.call({ action: 'history' }, false)).status, 401);
+  const { body: draft } = await f.call({ action: 'draft', partnerId });
+  f.deps.history.claim = async () => { throw new Error('Database unavailable'); };
+  assert.equal((await f.call({ action: 'send', draftToken: draft.draftToken, confirmSend: true })).status, 503);
+  assert.equal(f.state.sends.length, 0);
+  assert.equal((await f.call({ action: 'history' })).status, 200);
+});
+
+test('an accepted send is not reported as failed when history acknowledgement fails', async () => {
+  const f = fixture();
+  const { body: draft } = await f.call({ action: 'draft', partnerId });
+  f.deps.history.result = async () => { throw new Error('Database timeout'); };
+  const result = await f.call({ action: 'send', draftToken: draft.draftToken, confirmSend: true });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.sent, true);
+  assert.match(result.body.warning, /accepted/);
   assert.equal(f.state.sends.length, 1);
 });
 
