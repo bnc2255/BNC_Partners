@@ -94,7 +94,7 @@ test('requires explicit send, rejects tampering, and sends exactly the reviewed 
   assert.equal(message.htmlbody, draft.html);
   assert.equal(message.from.address, 'noreply@bncglobal.in');
   assert.equal(f.state.sends[0].options.headers.Authorization, 'Zoho-enczapikey server-zoho-token');
-  assert.equal(message.track_opens, false);
+  assert.equal(message.track_opens, true); // opens and clicks are tracked (Track Partner)
   assert.match(f.state.sends[0].url, /^https:\/\/cpaas.zoho.in\/v1.1\/email$/);
   assert.equal((await f.call({ action: 'send', draftToken: draft.draftToken, confirmSend: true })).status, 409);
   assert.equal(f.state.sends.length, 1);

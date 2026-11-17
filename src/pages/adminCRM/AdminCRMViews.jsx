@@ -253,7 +253,7 @@ function Metric({ label, value }) {
   return (
     <div className="rounded-2xl border border-line bg-surface p-5 shadow-sm">
       <div className="text-[11px] font-bold uppercase tracking-wider text-ink/40">{label}</div>
-      <div className="mt-2 font-heading text-[#DC2626]xl font-bold text-ink">{value}</div>
+      <div className="mt-2 font-heading text-2xl font-bold text-ink">{value}</div>
     </div>
   );
 }
@@ -1360,7 +1360,7 @@ export function CampaignsView({ onOpenCampaign }) {
           </button>
         ))}
         <button onClick={createCampaign} className="flex min-h-[240px] flex-col items-center justify-center rounded-2xl border-[#DC2626] border-dashed border-line bg-surface/50 p-5 text-center hover:border-accent/40">
-          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-[#DC2626]xl text-violet-700">+</span>
+          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-2xl text-violet-700">+</span>
           <span className="font-heading text-sm font-bold text-ink">Create Campaign</span>
           <span className="mt-1 max-w-[160px] text-xs leading-normal text-ink/40">Start a blank automated sequence</span>
         </button>
@@ -1567,7 +1567,7 @@ function NodeInspector({ node, templates, onChange, onDelete, onPreview, onClose
   if (!node) {
     return (
       <div className="flex w-80 shrink-0 flex-col items-center justify-center border-l border-line bg-surface p-6 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 text-[#DC2626]xl text-violet-600">+</div>
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 text-2xl text-violet-600">+</div>
         <p className="text-xs font-bold text-ink">Properties Inspector</p>
         <p className="mt-1 max-w-[200px] text-[10px] leading-relaxed text-ink/40">Click any step on the canvas to edit its properties.</p>
       </div>

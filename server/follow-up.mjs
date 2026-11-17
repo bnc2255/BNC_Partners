@@ -62,7 +62,8 @@ async function loadPartner(db, partnerId) {
 function zohoSettings(env) {
   const token = (env.ZOHO_TOKEN || env.ZEPTOMAIL_TOKEN || '').trim();
   if (!token || /https?:\/\//i.test(token)) fail('Set a valid ZeptoMail API token in ZOHO_TOKEN on the server.', 503);
-  const from = env.ZOHO_FROM_ADDRESS || 'noreply@bncglobal.in';
+  // follow-ups come from the partner team so partners can reply
+  const from = env.ZOHO_FROM_ADDRESS || env.PARTNER_FROM_ADDRESS || 'partners@bncglobal.in';
   if (!validEmail(from)) fail('ZOHO_FROM_ADDRESS must be a valid sender email.', 503);
   const authorization = /^Zoho-enczapikey\s+/i.test(token) ? token : `Zoho-enczapikey ${token}`;
   return { url: deliveryUrl, headers: { Authorization: authorization, 'Content-Type': 'application/json', Accept: 'application/json' }, from };
@@ -119,7 +120,7 @@ export async function followUpHandler(request, env, dependencies = {}) {
       };
       let response;
       try {
-        response = await fetcher(settings.url, { method: 'POST', headers: settings.headers, body: JSON.stringify({ from: { address: settings.from, name: 'BNC Global' }, to: [{ email_address: { address: partner.email, name: partner.name } }], subject: signed.subject, htmlbody: signed.html, client_reference: signed.id, track_opens: false, track_clicks: false }), signal: AbortSignal.timeout(20000) });
+        response = await fetcher(settings.url, { method: 'POST', headers: settings.headers, body: JSON.stringify({ from: { address: settings.from, name: 'BNC LEG Partners' }, to: [{ email_address: { address: partner.email, name: partner.name } }], subject: signed.subject, htmlbody: signed.html, client_reference: signed.id, track_opens: true, track_clicks: true }), signal: AbortSignal.timeout(20000) });
       } catch { return await recordFailure('unknown', 'Delivery status is unknown. Check ZeptoMail logs before sending again.'); }
       let result;
       try { result = await response.json(); } catch { return await recordFailure('unknown', 'Delivery status is unknown. Check ZeptoMail logs before sending again.'); }
@@ -150,7 +151,7 @@ export async function followUpHandler(request, env, dependencies = {}) {
     const origin = new URL(env.PUBLIC_SITE_URL || 'https://partners.bncglobal.in');
     if (origin.protocol !== 'https:') fail('PUBLIC_SITE_URL must use HTTPS.', 503);
     const html = renderEmail(copy, partner, new URL('/login', origin).href, { supportEmail: env.FOLLOW_UP_SUPPORT_EMAIL, supportPhone: env.FOLLOW_UP_SUPPORT_PHONE, deadlineDate: env.FOLLOW_UP_DEADLINE_DATE });
-    const draft = { id: crypto.randomUUID(), adminId: user.id, partnerId, to: partner.email, from: env.ZOHO_FROM_ADDRESS || 'noreply@bncglobal.in', subject: copy.subject, html, milestoneSnapshot, expiresAt: Date.now() + 30 * 60 * 1000 };
+    const draft = { id: crypto.randomUUID(), adminId: user.id, partnerId, to: partner.email, from: env.ZOHO_FROM_ADDRESS || env.PARTNER_FROM_ADDRESS || 'partners@bncglobal.in', subject: copy.subject, html, milestoneSnapshot, expiresAt: Date.now() + 30 * 60 * 1000 };
     return json({ subject: draft.subject, html, to: draft.to, from: draft.from, model: MODEL, expiresAt: draft.expiresAt, draftToken: await seal(draft, secret) });
   } catch (error) {
     return json({ error: error.publicError ? error.message : 'The follow-up service could not complete the request. Please try again.' }, error.publicError ? error.status : 502);

@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FiBookOpen, FiHelpCircle, FiMail, FiPhone, FiUsers } from 'react-icons/fi';
@@ -83,7 +84,16 @@ const countries = [
 const GlobalServices = () => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
-  const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const { search } = useLocation();
+  const countryParam = new URLSearchParams(search).get('country');
+  const [selectedCountry, setSelectedCountry] = useState(countries.find((c) => c.key === countryParam) || countries[0]);
+  // follow ?country= when it changes (e.g. picked from the header Countries menu)
+  const [lastCountryParam, setLastCountryParam] = useState(countryParam);
+  if (countryParam !== lastCountryParam) {
+    setLastCountryParam(countryParam);
+    const match = countries.find((c) => c.key === countryParam);
+    if (match) setSelectedCountry(match);
+  }
   const [activeSection, setActiveSection] = useState('manpower');
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -144,6 +154,12 @@ const GlobalServices = () => {
       description: t('globalServices.sections.training.description')
     },
     {
+      key: 'other',
+      label: t('globalServices.sections.other.label'),
+      heading: t('globalServices.sections.other.heading'),
+      description: t('globalServices.sections.other.description')
+    },
+    {
       key: 'contact',
       label: t('globalServices.sections.contact.label'),
       heading: t('globalServices.sections.contact.heading'),
@@ -156,17 +172,20 @@ const GlobalServices = () => {
   const formTitleMap = {
     manpower: t('globalServices.form.title.manpower'),
     enquiry: t('globalServices.form.title.enquiry'),
-    training: t('globalServices.form.title.training')
+    training: t('globalServices.form.title.training'),
+    other: t('globalServices.form.title.other')
   };
   const formCtaMap = {
     manpower: t('globalServices.form.cta.manpower'),
     enquiry: t('globalServices.form.cta.enquiry'),
-    training: t('globalServices.form.cta.training')
+    training: t('globalServices.form.cta.training'),
+    other: t('globalServices.form.cta.other')
   };
   const messagePlaceholderMap = {
     manpower: t('globalServices.form.messagePlaceholder.manpower'),
     enquiry: t('globalServices.form.messagePlaceholder.enquiry'),
-    training: t('globalServices.form.messagePlaceholder.training')
+    training: t('globalServices.form.messagePlaceholder.training'),
+    other: t('globalServices.form.messagePlaceholder.other')
   };
   const formTitle = formTitleMap[activeSection] || t('globalServices.form.title.default');
   const formCta = formCtaMap[activeSection] || t('globalServices.form.cta.default');
@@ -221,13 +240,13 @@ const GlobalServices = () => {
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-gradient-to-b from-[#f5f7fb] via-[#f9fbff] to-[#eef2f7]" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen bg-[#f5f5f7]" dir={isRtl ? 'rtl' : 'ltr'}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm p-6 ${textAlign}`}>
+          <div className={`lg-card p-7 ${textAlign}`}>
             <p className="font-geist text-xs uppercase tracking-[0.2em] text-slate-400">
               {t('globalServices.label')}
             </p>
-            <h1 className="font-poppins text-[#DC2626]xl sm:text-3xl font-semibold text-slate-900 mt-2">
+            <h1 className="lg-h2 mt-3 !text-[clamp(30px,3.6vw,46px)]">
               {t('globalServices.title')}
             </h1>
             <p className="font-geist text-sm text-slate-600 mt-2">
@@ -244,8 +263,8 @@ const GlobalServices = () => {
                   }}
                   className={`group rounded-2xl border px-4 py-3 ${isRtl ? 'text-right' : 'text-left'} transition will-change-transform ${
                     selectedCountry.key === country.key
-                      ? 'border-[#DC2626] bg-gradient-to-br from-[#DC2626]/15 via-white to-[#DC2626]/5 text-[#000000] shadow-[0_16px_30px_rgba(15,23,42,0.2)] scale-[1.03]'
-                      : 'border-slate-200 bg-white text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:-translate-y-1 hover:shadow-[0_18px_30px_rgba(15,23,42,0.16)] hover:scale-[1.02]'
+                      ? 'border-[#1d1d1f] bg-white text-[#1d1d1f] shadow-[0_0_0_1px_#1d1d1f,0_18px_40px_-20px_rgba(0,0,0,0.35)]'
+                      : 'border-black/[0.06] bg-white text-[#424245] shadow-[0_4px_14px_-8px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-18px_rgba(0,0,0,0.3)]'
                   }`}
                   style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
                 >
@@ -271,12 +290,12 @@ const GlobalServices = () => {
           </div>
 
           <div className={`mt-8 flex flex-col gap-6 ${isRtl ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
-            <aside className="lg:w-[32%] border border-slate-200 rounded-2xl bg-white shadow-sm lg:sticky lg:top-40 lg:self-start">
+            <aside className="lg:w-[32%] lg-card lg:sticky lg:top-24 lg:self-start">
               <div className={`p-6 border-b border-slate-200 ${textAlign}`}>
                 <p className="font-geist text-xs uppercase tracking-[0.2em] text-slate-400">
                   {selectedCountryLabel}
                 </p>
-                <h2 className="font-poppins text-[#DC2626]xl font-semibold text-gray-900 mt-2">
+                <h2 className="font-poppins text-2xl font-semibold text-gray-900 mt-2">
                   {t('globalServices.asideTitle')}
                 </h2>
                 <p className="font-geist text-sm text-gray-600 mt-3">
@@ -291,7 +310,7 @@ const GlobalServices = () => {
                     onClick={() => setActiveSection(section.key)}
                     className={`group relative w-full ${isRtl ? 'text-right' : 'text-left'} px-4 py-3 rounded-xl border transition ${
                       activeSection === section.key
-                        ? 'bg-[#DC2626]/10 border-[#DC2626]/30 text-[#000000]'
+                        ? 'bg-[#1d1d1f] border-[#1d1d1f] text-white'
                         : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
                   >
@@ -308,7 +327,7 @@ const GlobalServices = () => {
               <div className="space-y-8">
                 <div className={`flex flex-col gap-4 ${mdRowDirection} md:items-center md:justify-between ${textAlign}`}>
                   <div>
-                    <h3 className="font-poppins text-[#DC2626]xl font-semibold text-gray-900">
+                    <h3 className="font-poppins text-2xl font-semibold text-gray-900">
                       {activeSectionData.heading}
                     </h3>
                     <p className={`font-geist text-gray-600 mt-2 ${sectionPadding}`}>
@@ -318,16 +337,16 @@ const GlobalServices = () => {
                 </div>
 
                 {activeSection === 'manpower' && (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiUsers className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h4 className="font-poppins text-xl font-semibold">
                           {t('globalServices.sections.manpower.heading')}
                         </h4>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -337,18 +356,18 @@ const GlobalServices = () => {
                 )}
 
                 {activeSection === 'training' && (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`grid gap-6 ${isRtl ? 'md:grid-cols-[0.9fr_1.1fr]' : 'md:grid-cols-[1.1fr_0.9fr]'}`}>
                       <div className={isRtl ? 'md:order-2' : ''}>
                         <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                             <FiBookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                           <div>
                             <h4 className="font-poppins text-xl font-semibold">
                               {t('globalServices.training.title')}
                             </h4>
-                            <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                            <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                           </div>
                         </div>
                         <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -387,16 +406,16 @@ const GlobalServices = () => {
                 )}
 
                 {activeSection === 'enquiry' && (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiHelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h4 className="font-poppins text-xl font-semibold">
                           {t('globalServices.enquiryCard.title')}
                         </h4>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -406,7 +425,7 @@ const GlobalServices = () => {
                 )}
 
                 {activeSection === 'contact' && (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`flex items-center justify-between flex-wrap gap-4 ${rowDirection}`}>
                       <div className={textAlign}>
                         <h4 className="font-poppins text-xl font-semibold text-gray-900">
@@ -436,7 +455,7 @@ const GlobalServices = () => {
                           </div>
                         </a>
                         <a
-                          href="https://wa.me/919958711796"
+                          href="https://wa.me/919810575613"
                           target="_blank"
                           rel="noreferrer"
                           className="group border border-emerald-200 rounded-2xl bg-white p-5 transition hover:border-emerald-300 hover:shadow-md"
@@ -447,7 +466,7 @@ const GlobalServices = () => {
                                 {t('serviceDetail.contact.whatsapp')}
                               </p>
                               <p className="font-geist text-sm text-emerald-700 mt-2">
-                                +91 99587 11796
+                                +91 98105 75613
                               </p>
                             </div>
                             <div className={`${iconMargin} h-10 w-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center group-hover:border-emerald-300 group-hover:bg-emerald-100 transition`}>
@@ -479,16 +498,16 @@ const GlobalServices = () => {
                 )}
 
                 {activeSection !== 'contact' && (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiMail className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h4 className="font-poppins text-xl font-semibold">
                           {formTitle}
                         </h4>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 text-sm mt-3 mb-4 ${sectionPadding}`}>
@@ -508,7 +527,7 @@ const GlobalServices = () => {
                           value={formValues.name}
                           onChange={handleChange}
                           placeholder={t('globalServices.form.placeholders.fullName')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           required
                           readOnly={isLoggedIn}
                         />
@@ -518,7 +537,7 @@ const GlobalServices = () => {
                           value={formValues.email}
                           onChange={handleChange}
                           placeholder={t('globalServices.form.placeholders.email')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           required
                           readOnly={isLoggedIn}
                         />
@@ -528,7 +547,7 @@ const GlobalServices = () => {
                           value={formValues.phone}
                           onChange={handleChange}
                           placeholder={t('globalServices.form.placeholders.phone')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           readOnly={isLoggedIn}
                         />
                         <input
@@ -537,7 +556,7 @@ const GlobalServices = () => {
                           value={formValues.company}
                           onChange={handleChange}
                           placeholder={t('globalServices.form.placeholders.company')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                         />
                         <textarea
                           name="message"
@@ -545,7 +564,7 @@ const GlobalServices = () => {
                           onChange={handleChange}
                           rows="4"
                           placeholder={messagePlaceholder}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                         />
                         {submitError && (
                           <p className="font-geist text-sm text-red-600">
@@ -555,7 +574,7 @@ const GlobalServices = () => {
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="w-full bg-[#DC2626] text-white py-2.5 rounded-xl font-semibold shadow hover:bg-[#000000] transition"
+                          className="lg-btn lg-btn-ink w-full"
                         >
                           {isSubmitting ? t('globalServices.form.submitting') : formCta}
                         </button>

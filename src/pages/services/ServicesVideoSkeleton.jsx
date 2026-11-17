@@ -3,10 +3,10 @@ import React from 'react';
 const ServicesVideoSkeleton = () => (
   <div
     aria-hidden="true"
-    className="relative h-full w-full overflow-hidden bg-gradient-to-br from-slate-950 via-[#102f58] to-[#285a9b]"
+    className="relative h-full w-full overflow-hidden bg-gradient-to-br from-[#1d1d1f] via-[#2c2c2e] to-[#424245]"
   >
     <div className="absolute inset-0 opacity-45">
-      <div className="absolute -left-10 top-8 h-36 w-36 rounded-full bg-sky-300/20 blur-3xl" />
+      <div className="absolute -left-10 top-8 h-36 w-36 rounded-full bg-white/10 blur-3xl" />
       <div className="absolute -right-12 bottom-4 h-40 w-40 rounded-full bg-white/20 blur-3xl" />
       <div className="absolute inset-y-0 right-1/4 w-28 skew-x-[-18deg] bg-white/10" />
     </div>

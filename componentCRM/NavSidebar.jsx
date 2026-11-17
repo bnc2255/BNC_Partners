@@ -1,17 +1,18 @@
 import React, { Fragment } from "react";
-import { FileSpreadsheet, GitBranch, Inbox, LayoutDashboard, Mail, Upload, Users, HelpCircle } from "lucide-react";
+import { FileSpreadsheet, GitBranch, Inbox, LayoutDashboard, Mail, Upload, Users, HelpCircle, Gift } from "lucide-react";
 
 function NavSidebar({ activeView, onViewChange }) {
   const navItems = [
     { icon: LayoutDashboard, view: "dashboard", label: "Dashboard" },
-    { icon: Users, view: "partners", label: "Partners" },
+    { icon: Users, view: "partners", label: "Track Partner" },
     { icon: Mail, view: "followups", label: "Follow-ups" },
     { icon: Inbox, view: "submissions", label: "Form Submissions" },
     { icon: FileSpreadsheet, view: "leads", label: "Leads" },
     { icon: Upload, view: "importLeads", label: "Import Leads" },
     { icon: GitBranch, view: "campaigns", label: "Campaigns" },
     { icon: Mail, view: "templates", label: "Email Templates" },
-    { icon: HelpCircle, view: "requests", label: "Service Requests" }
+    { icon: HelpCircle, view: "requests", label: "Service Requests" },
+    { icon: Gift, view: "referrals", label: "Referrals" }
   ];
 
   return (

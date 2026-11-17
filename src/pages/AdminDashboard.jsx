@@ -8,8 +8,9 @@ import { OrdersChart } from '../../componentCRM/OrdersChart';
 import { PlannedIncomeChart } from '../../componentCRM/PlannedIncomeChart';
 import { LatestSales } from '../../componentCRM/LatestSales';
 import { PartnerCRMTable } from '../../componentCRM/PartnerCRMTable';
-import { PartnerAIProfileDetail } from '../../componentCRM/PartnerAIProfileDetail';
+import PartnerDetailPage from '../../componentCRM/PartnerDetailPage';
 import { FollowUpComposer, PartnerFollowUps } from '../../componentCRM/PartnerFollowUps';
+import ReferralsAdmin from './adminCRM/ReferralsAdmin';
 import {
   CampaignBuilderView,
   CampaignsView,
@@ -325,7 +326,7 @@ const AdminDashboard = () => {
         value: total.toLocaleString(),
         trend: 'up',
         progress: total ? 1 : 0,
-        progressColor: '#5e81f4'
+        progressColor: '#6E6E73'
       },
       {
         label: 'AI Profiles Complete',
@@ -349,7 +350,7 @@ const AdminDashboard = () => {
         value: thisMonth.toLocaleString(),
         trend: 'up',
         progress: total ? thisMonth / total : 0,
-        progressColor: '#5e81f4'
+        progressColor: '#6E6E73'
       }
     ];
   }, [dashboardData]);
@@ -392,26 +393,31 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="h-screen bg-[#f5f5fa] flex overflow-hidden">
+    <div className="h-screen bg-[#F5F5F7] flex overflow-hidden">
       {emailPartners && <FollowUpComposer partners={emailPartners.map(partner => mappedPartners.find(p => p.id === partner.id) || partner)} onClose={() => setEmailPartners(null)} onSendComplete={() => setEmailHistoryRefresh(value => value + 1)} />}
       <NavSidebar activeView={activeView === 'campaignBuilder' ? 'campaigns' : activeView} onViewChange={handleViewChange} />
 
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-        {activeView === 'partners' && selectedPartner ? (
-          <PartnerAIProfileDetail
+        {(activeView === 'partners' || activeView === 'followups') && selectedPartner ? (
+          <PartnerDetailPage
+            key={selectedPartner.id}
             partner={selectedPartner}
             onBack={handleBackFromDetail}
+            backLabel={activeView === 'followups' ? 'Back to Follow-ups' : 'Back to Track Partner'}
+            // emails can only be sent from the Follow-ups page
+            onFollowUp={activeView === 'followups' ? openFollowUp : undefined}
           />
         ) : activeView === 'partners' ? (
+          // Track Partner is for tracking only: no email buttons here
           <PartnerCRMTable
             partners={mappedPartners}
             adminLabel={adminData?.adminId || adminData?.email || 'Admin'}
             onLogout={handleLogout}
             onViewPartner={handleViewPartner}
-            onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp}
+            subtitle="Track onboarding, emails and activity · To send emails, use Follow-ups"
           />
         ) : activeView === 'followups' ? (
-          <PartnerFollowUps refreshKey={emailHistoryRefresh} partners={mappedPartners} adminLabel={adminData?.adminId || adminData?.email || 'Admin'} onLogout={handleLogout} onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp} />
+          <PartnerFollowUps refreshKey={emailHistoryRefresh} partners={mappedPartners} adminLabel={adminData?.adminId || adminData?.email || 'Admin'} onLogout={handleLogout} onFollowUp={openFollowUp} onBulkFollowUp={openFollowUp} onViewPartner={handleViewPartner} />
         ) : activeView === 'submissions' ? (
           <FormSubmissionsView />
         ) : activeView === 'leads' ? (
@@ -428,9 +434,13 @@ const AdminDashboard = () => {
           <div className="flex-1 overflow-y-auto px-7 py-5">
             <ServiceRequestsView />
           </div>
+        ) : activeView === 'referrals' ? (
+          <div className="flex-1 overflow-y-auto px-7 py-5">
+            <ReferralsAdmin />
+          </div>
         ) : (
           <>
-            <div className="flex items-center justify-between px-7 h-[84px] bg-[#f5f5fa] border-b border-[#ececf2] shrink-0">
+            <div className="flex items-center justify-between px-7 h-[84px] bg-[#F5F5F7] border-b border-[#ececf2] shrink-0">
               <div>
                 <h1 className="text-[#1c1d21] text-[20px] font-bold">CRM Admin Dashboard</h1>
                 <p className="text-[#8181a5] text-[12px]">Live data from Supabase</p>
@@ -438,7 +448,7 @@ const AdminDashboard = () => {
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 rounded-[8px] text-[13px] font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #5e81f4 0%, #4060d8 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #6E6E73 0%, #4060d8 100%)' }}
               >
                 Logout
               </button>

@@ -257,7 +257,7 @@ const ResetPassword = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 bg-gradient-to-r from-[#DC2626] to-[#B91C1C] hover:from-[#B91C1C] hover:to-[#163062] text-white py-3 px-4 rounded-xl font-semibold transition-all text-sm disabled:opacity-50 shadow-lg shadow-red-500/20"
+              className="w-full mt-2 bg-gradient-to-r from-[#DC2626] to-[#B91C1C] hover:from-[#B91C1C] hover:to-[#1D1D1F] text-white py-3 px-4 rounded-xl font-semibold transition-all text-sm disabled:opacity-50 shadow-lg shadow-red-500/20"
             >
               {isLoading
                 ? (t('login.updatingPassword') || 'Updating...')

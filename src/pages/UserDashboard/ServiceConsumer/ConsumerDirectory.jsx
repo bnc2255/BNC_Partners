@@ -27,7 +27,7 @@ const ConsumerDirectory = ({
   handleBookServiceSubmit
 }) => {
   return (
-    <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="space-y-6 animate-fade-in">
       
       {/* Category Filter and Search Panel */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -38,7 +38,7 @@ const ConsumerDirectory = ({
               onClick={() => setExploreCategory(cat)}
               className={`px-4 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
                 exploreCategory === cat
-                  ? 'bg-[#E52E38] text-white shadow-xs'
+                  ? 'bg-[#DC2626] text-white shadow-xs'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
             >
@@ -53,7 +53,7 @@ const ConsumerDirectory = ({
             placeholder="Search service details..."
             value={exploreSearch}
             onChange={(e) => setExploreSearch(e.target.value)}
-            className="w-full px-4 py-2.5 pl-10 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:ring-2 focus:ring-[#E52E38]/20 focus:outline-none"
+            className="w-full px-4 py-2.5 pl-10 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:ring-2 focus:ring-[#DC2626]/20 focus:outline-none"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
         </div>
@@ -74,7 +74,7 @@ const ConsumerDirectory = ({
                   alt={service.category}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <span className="absolute top-3 right-3 bg-[#0F2A4A] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-md">
+                <span className="absolute top-3 right-3 bg-[#1D1D1F] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-md">
                   {service.category}
                 </span>
               </div>
@@ -84,7 +84,7 @@ const ConsumerDirectory = ({
                   <h3 className="text-xl font-bold text-slate-900 leading-tight">
                     {service.title}
                   </h3>
-                  <span className="text-xs font-black text-[#E52E38] shrink-0 ml-2">
+                  <span className="text-xs font-black text-[#DC2626] shrink-0 ml-2">
                     ${service.price} / {service.unit}
                   </span>
                 </div>
@@ -106,7 +106,7 @@ const ConsumerDirectory = ({
                   setSelectedServiceToBook(service);
                   setIsBookModalOpen(true);
                 }}
-                className="w-full py-3 rounded-xl bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                className="w-full py-3 rounded-xl bg-[#1D1D1F] hover:bg-[#1D1D1F] text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <span>Book Consultation</span>
                 <ArrowRight className="w-4 h-4" />
@@ -124,7 +124,7 @@ const ConsumerDirectory = ({
               <X className="w-5 h-5" />
             </button>
 
-            <span className="text-[10px] font-bold tracking-widest text-[#E52E38] uppercase">BOOK APPOINTMENT</span>
+            <span className="text-[10px] font-bold tracking-widest text-[#DC2626] uppercase">BOOK APPOINTMENT</span>
             <h3 className="text-xl font-black text-slate-900 mt-1 mb-2">Book Consultation Call</h3>
             <p className="text-xs text-slate-500 mb-6 font-semibold">Schedule a strategy meeting for service: <strong>{selectedServiceToBook?.title}</strong></p>
 
@@ -169,7 +169,7 @@ const ConsumerDirectory = ({
                 />
               </div>
 
-              <button type="submit" className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#0F2A4A] hover:bg-[#0A1D34] transition-all shadow-md mt-2 cursor-pointer">
+              <button type="submit" className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#1D1D1F] hover:bg-[#1D1D1F] transition-all shadow-md mt-2 cursor-pointer">
                 Confirm Call Booking & Reserve Slot
               </button>
             </form>

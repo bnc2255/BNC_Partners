@@ -1,532 +1,122 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "@supabase/supabase-js";
+// Onboarding emails, run on a schedule (call with header x-reminder-secret).
+//
+//   Welcome     right after registration (safety net here if the sign-up call failed)
+//   Reminder 1  24 hours after the welcome email
+//   Reminder 2  3 days after the welcome email
+//   Reminder 3  7 days after the welcome email (final)
+//
+// Reminders stop as soon as the AI profile AND the partner agreement are done.
+// Everything is sent through ZeptoMail from partners@bncglobal.in and logged in the existing
+// crm_follow_up_emails table (type stored as a "type:..." row in crm_follow_up_email_events),
+// which Admin > Track Partner reads.
+//
+// Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ZOHO_TOKEN, ONBOARDING_REMINDER_SECRET
+//          (or CAMPAIGN_TICK_SECRET), optional WELCOME_SAFETY_NET_SINCE (ISO date).
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { cors, json, sendEmail } from "../_shared/zeptomail.ts";
+import { reminderEmail, welcomeEmail } from "../_shared/emailTemplates.js";
 
-type PartnerRow = {
-  partner_id: string;
-  partner_email: string | null;
-  ai_started_at: string | null;
-  ai_last_activity_at: string | null;
-  ai_completed_at: string | null;
-  agreement_completed_at: string | null;
-  last_reminder_stage: number | null;
-  reminders_stopped_at: string | null;
-  registration_partner_profiles: {
-    first_name: string | null;
-    last_name: string | null;
-    created_at: string | null;
-    agreement_signed: boolean | null;
-    agreement_signed_at: string | null;
-  } | null;
-};
+const db = createClient(Deno.env.get("SUPABASE_URL") || "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "", { auth: { persistSession: false } });
+const SECRET = Deno.env.get("ONBOARDING_REMINDER_SECRET") || Deno.env.get("CAMPAIGN_TICK_SECRET") || "";
+// partners registered before this date already went through the old reminder emails,
+// so the welcome safety net only applies from here on
+const SAFETY_NET_SINCE = new Date(Deno.env.get("WELCOME_SAFETY_NET_SINCE") || "2026-11-16T00:00:00Z");
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") || "";
-const REMINDER_SECRET = Deno.env.get("ONBOARDING_REMINDER_SECRET") || Deno.env.get("CAMPAIGN_TICK_SECRET") || "";
-const FROM_EMAIL = Deno.env.get("ONBOARDING_REMINDER_FROM_EMAIL") || "no-reply@bncglobal.in";
-const FROM_NAME = Deno.env.get("ONBOARDING_REMINDER_FROM_NAME") || "BnC Global";
-const LOGIN_URL = Deno.env.get("ONBOARDING_REMINDER_LOGIN_URL") || "https://partners.bncglobal.in/login";
-const SUPPORT_EMAIL = Deno.env.get("ONBOARDING_REMINDER_SUPPORT_EMAIL") || "wofa@bncglobal.in";
-const SUPPORT_PHONE = Deno.env.get("ONBOARDING_REMINDER_SUPPORT_PHONE") || "+91 98105 75613";
+const HOUR = 3600e3;
+const STAGES = [{ stage: 1, hours: 24 }, { stage: 2, hours: 72 }, { stage: 3, hours: 24 * 7 }];
+const STOP_AFTER_HOURS = 24 * 14;
+const MAX_PER_RUN = 200;
 
-const STAGE_1_HOURS = 24;
-const STAGE_2_HOURS = 72;
-const STAGE_3_HOURS = 24 * 7;
-const STOP_HOURS = 24 * 14;
-const MAX_USERS_PER_RUN = 200;
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
-};
-
-const MS_HOUR = 60 * 60 * 1000;
-
-const escapeHtml = (value: string) =>
-  String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
-
-const normalizeEmail = (value: string | null | undefined) => String(value || "").trim().toLowerCase();
-
-const getAnchorDate = (row: PartnerRow) =>
-  row.ai_last_activity_at || row.ai_started_at || row.registration_partner_profiles?.created_at
-    ? new Date(row.ai_last_activity_at || row.ai_started_at || (row.registration_partner_profiles?.created_at as string))
-    : null;
-
-const formatDate = (date: Date) =>
-  new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
-
-const getStageByHoursPending = (hoursPending: number) => {
-  if (hoursPending >= STAGE_3_HOURS) return 3;
-  if (hoursPending >= STAGE_2_HOURS) return 2;
-  if (hoursPending >= STAGE_1_HOURS) return 1;
-  return 0;
-};
-
-const getSubject = (stage: number) => {
-  if (stage >= 3) return "Final Reminder: Complete your AI Profile and Partner Agreement";
-  if (stage === 2) return "Reminder: Your BnC Global partner onboarding is still pending";
-  return "Action Required: Complete your AI Profile and Partner Agreement";
-};
-
-const renderEmailHtml = ({
-  name,
-  email,
-  daysPending,
-  deadlineDate,
-  aiComplete,
-  agreementSigned
-}: {
-  name: string;
-  email: string;
-  daysPending: number;
-  deadlineDate: string;
-  aiComplete: boolean;
-  agreementSigned: boolean;
-}) => {
-  const safeName = escapeHtml(name);
-  const safeEmail = escapeHtml(email);
-  const safeLoginUrl = escapeHtml(LOGIN_URL);
-  const aiBadgeLabel = aiComplete ? "AI Profile Completed" : "AI Profile Not Completed";
-  const aiBadgeBg = aiComplete ? "#dcfce7" : "#fee2e2";
-  const aiBadgeColor = aiComplete ? "#166534" : "#991b1b";
-  const aiBadgeIcon = aiComplete ? "&#10003;" : "&#10005;";
-  const agreementBadgeLabel = agreementSigned ? "Partner Agreement Signed" : "Partner Agreement Not Signed";
-  const agreementBadgeBg = agreementSigned ? "#dcfce7" : "#fee2e2";
-  const agreementBadgeColor = agreementSigned ? "#166534" : "#991b1b";
-  const agreementBadgeIcon = agreementSigned ? "&#10003;" : "&#10005;";
-
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Action Required - Complete Your AI Profile and Agreement | BNC Global</title>
-</head>
-<body style="margin:0; padding:0; background-color:#f8f7f5; font-family:Arial, 'Helvetica Neue', sans-serif;">
-  <div style="display:none; max-height:0; overflow:hidden; font-size:1px; color:#f8f7f5;">
-    Your BNC Global partner registration is incomplete. Complete your AI profile and agreement to activate your account.
-  </div>
-
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8f7f5; padding:40px 16px;">
-    <tr>
-      <td align="center">
-
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:620px;">
-          <tr>
-            <td style="background:#ffffff; border:1px solid #ebe8e4; border-radius:16px 16px 0 0; overflow:hidden; box-shadow:0 8px 24px rgba(15,23,42,0.08);">
-
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="background:#101828; padding:36px 40px 32px; border-bottom:4px solid #ed2024;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td>
-                          <img src="https://xsxiuvqgngikzvchjnxq.supabase.co/storage/v1/object/public/logo/BNC%20LEG%20logo.png" width="100" alt="BNC Global" style="display:block; background:#ffffff; padding:8px 12px; border-radius:8px;">
-                        </td>
-                        <td align="right" style="vertical-align:middle;">
-                          <span style="background:rgba(237,32,36,0.13); border:1px solid rgba(237,32,36,0.75); color:#ffffff; font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:5px 14px; border-radius:20px;">
-                            Action Required
-                          </span>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;">
-                      <tr>
-                        <td>
-                          <p style="margin:0 0 6px; font-size:12px; color:#f4b7b8; letter-spacing:3px; text-transform:uppercase; font-weight:700;">Your Profile Is Incomplete</p>
-                          <h1 style="margin:0 0 10px; font-size:27px; font-weight:700; color:#ffffff; line-height:1.35;">
-                            Hey <span style="color:#ff5b5f;">${safeName}</span>, you're almost there!
-                          </h1>
-                          <p style="margin:0; font-size:15px; color:rgba(255,255,255,0.82); line-height:1.65;">
-                            You registered successfully, but your AI profile and partner agreement are still pending. Complete them to fully activate your partner account.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-
-                  </td>
-                </tr>
-              </table>
-
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="padding:34px 40px;">
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                           style="background:#fff8f8; border:1px solid #f5cdce; border-left:4px solid #ed2024; border-radius:8px; margin-bottom:28px;">
-                      <tr>
-                        <td style="padding:18px 22px;">
-                          <p style="margin:0 0 4px; font-size:14px; font-weight:700; color:#991b1b;">Account Activation Pending</p>
-                          <p style="margin:0; font-size:13px; color:#667085; line-height:1.5;">
-                            It's been <strong>${daysPending} days</strong> since you registered. Please complete your profile by <strong>${escapeHtml(deadlineDate)}</strong> to avoid any delays in activating your partner account.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <p style="margin:0 0 16px; font-size:13px; font-weight:700; color:#ed2024; letter-spacing:1.5px; text-transform:uppercase;">
-                      What's Pending
-                    </p>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                           style="background:#faf9f7; border:1px solid #ebe8e4; border-radius:8px; margin-bottom:12px;">
-                      <tr>
-                        <td style="padding:16px 20px;">
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                            <tr>
-                              <td width="36" style="vertical-align:middle;">
-                                <div style="width:28px; height:28px; background:${aiBadgeBg}; color:${aiBadgeColor}; border-radius:50%; text-align:center; line-height:28px; font-size:12px; font-weight:700; display:inline-block;">${aiBadgeIcon}</div>
-                              </td>
-                              <td style="vertical-align:middle; padding-left:12px;">
-                                <p style="margin:0 0 2px; font-size:14px; font-weight:700; color:#1f2937;">${aiBadgeLabel}</p>
-                                <p style="margin:0; font-size:13px; color:#667085; line-height:1.5;">Tell us about your business goals, expertise, and interests so we can match you with the right opportunities.</p>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                           style="background:#faf9f7; border:1px solid #ebe8e4; border-radius:8px; margin-bottom:28px;">
-                      <tr>
-                        <td style="padding:16px 20px;">
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                            <tr>
-                              <td width="36" style="vertical-align:middle;">
-                                <div style="width:28px; height:28px; background:${agreementBadgeBg}; color:${agreementBadgeColor}; border-radius:50%; text-align:center; line-height:28px; font-size:12px; font-weight:700; display:inline-block;">${agreementBadgeIcon}</div>
-                              </td>
-                              <td style="vertical-align:middle; padding-left:12px;">
-                                <p style="margin:0 0 2px; font-size:14px; font-weight:700; color:#1f2937;">${agreementBadgeLabel}</p>
-                                <p style="margin:0; font-size:13px; color:#667085; line-height:1.5;">Review and digitally sign the BNC Global Partner Agreement to formally onboard and unlock all partner benefits.</p>
-                              </td>
-                            </tr>
-                          </table>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
-                      <tr><td style="height:1px; background:#e5e7eb;"></td></tr>
-                    </table>
-
-                    <p style="margin:0 0 18px; font-size:13px; font-weight:700; color:#ed2024; letter-spacing:1.5px; text-transform:uppercase;">
-                      How to Complete
-                    </p>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
-                      <tr>
-                        <td width="46" style="vertical-align:top;">
-                          <div style="width:34px; height:34px; background:#ed2024; border-radius:50%; text-align:center; line-height:34px; font-size:14px; font-weight:700; color:#fff; display:inline-block;">1</div>
-                        </td>
-                        <td style="vertical-align:top; padding-top:5px;">
-                          <p style="margin:0 0 3px; font-size:14px; font-weight:700; color:#1f2937;">Login to Your Account</p>
-                          <p style="margin:0; font-size:13px; color:#667085; line-height:1.55;">
-                            Sign in using your registered email: <strong style="color:#101828;">${safeEmail}</strong>
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
-                      <tr>
-                        <td width="46" style="vertical-align:top;">
-                          <div style="width:34px; height:34px; background:#ed2024; border-radius:50%; text-align:center; line-height:34px; font-size:14px; font-weight:700; color:#fff; display:inline-block;">2</div>
-                        </td>
-                        <td style="vertical-align:top; padding-top:5px;">
-                          <p style="margin:0 0 3px; font-size:14px; font-weight:700; color:#1f2937;">Complete Your AI Profile</p>
-                          <p style="margin:0; font-size:13px; color:#667085; line-height:1.55;">Answer the smart questions to build your partner profile. It only takes a few minutes.</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:30px;">
-                      <tr>
-                        <td width="46" style="vertical-align:top;">
-                          <div style="width:34px; height:34px; background:#ed2024; border-radius:50%; text-align:center; line-height:34px; font-size:14px; font-weight:700; color:#fff; display:inline-block;">3</div>
-                        </td>
-                        <td style="vertical-align:top; padding-top:5px;">
-                          <p style="margin:0 0 3px; font-size:14px; font-weight:700; color:#1f2937;">Sign the Partner Agreement</p>
-                          <p style="margin:0; font-size:13px; color:#667085; line-height:1.55;">Review and digitally sign your agreement to officially become a BnC Global Partner and unlock all benefits.</p>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
-                      <tr>
-                        <td align="center">
-                          <a href="${safeLoginUrl}"
-                             style="display:inline-block; background:#101010; color:#ffffff; text-decoration:none; font-size:16px; font-weight:700; padding:16px 48px; border-radius:999px; letter-spacing:0.3px; border:1px solid #101010;">
-                            Complete Profile and Agreement
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <p style="margin:0 0 28px; font-size:12px; color:#9ca3af; text-align:center;">
-                      Takes less than 2 minutes to complete
-                    </p>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
-                      <tr><td style="height:1px; background:#e5e7eb;"></td></tr>
-                    </table>
-
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                           style="background:#fff8f8; border:1px solid #f5cdce; border-left:4px solid #ed2024; border-radius:8px; margin-bottom:24px;">
-                      <tr>
-                        <td style="padding:20px 24px;">
-                          <p style="margin:0 0 12px; font-size:13px; font-weight:700; color:#ed2024; letter-spacing:1px; text-transform:uppercase;">Why Complete Your Profile?</p>
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                            <tr><td style="font-size:13px; color:#374151; padding:3px 0;">- Get matched with relevant business opportunities</td></tr>
-                            <tr><td style="font-size:13px; color:#374151; padding:3px 0;">- Unlock access to funding and consulting resources</td></tr>
-                            <tr><td style="font-size:13px; color:#374151; padding:3px 0;">- Receive personalized partner support from our team</td></tr>
-                            <tr><td style="font-size:13px; color:#374151; padding:3px 0;">- Officially activate your BnC Global Partner status</td></tr>
-                          </table>
-                        </td>
-                      </tr>
-                    </table>
-
-                    <p style="margin:0 0 4px; font-size:14px; color:#374151; line-height:1.6;">
-                      Need help? Our team is happy to assist you through the process.
-                    </p>
-                    <p style="margin:0; font-size:14px; color:#6b7280;">
-                      <a href="mailto:${escapeHtml(SUPPORT_EMAIL)}" style="color:#ed2024; text-decoration:none;">${escapeHtml(SUPPORT_EMAIL)}</a> |
-                      <a href="tel:${escapeHtml(SUPPORT_PHONE)}" style="color:#ed2024; text-decoration:none;">${escapeHtml(SUPPORT_PHONE)}</a>
-                    </p>
-
-                  </td>
-                </tr>
-              </table>
-
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="background:#faf9f7; border-top:1px solid #ebe8e4; padding:24px 40px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td width="130" style="vertical-align:middle; padding-right:20px; border-right:1px solid #e6e2dd;">
-                          <img src="https://xsxiuvqgngikzvchjnxq.supabase.co/storage/v1/object/public/logo/BNC%20LEG%20logo.png"
-                               width="120" alt="BNC Global" style="display:block;">
-                        </td>
-                        <td style="vertical-align:top; padding-left:20px;">
-                          <p style="margin:0 0 4px; font-size:14px; font-weight:700; color:#101828;">BnC Global Services Pvt. Ltd.</p>
-                          <p style="margin:0 0 2px; font-size:12px; color:#6b7280;"><a href="https://www.bncglobal.in" style="color:#ed2024; text-decoration:none;">www.bncglobal.in</a></p>
-                          <p style="margin:0 0 2px; font-size:12px; color:#6b7280;">${escapeHtml(SUPPORT_EMAIL)}</p>
-                          <p style="margin:0 0 8px; font-size:12px; color:#6b7280;">${escapeHtml(SUPPORT_PHONE)}</p>
-                          <p style="margin:0 0 2px; font-size:11px; color:#9ca3af; line-height:1.6;">
-                            Startup Consulting and Funding | Outsourcing | Training<br>
-                            Shared Services | Advisory | Recruitment
-                          </p>
-                          <p style="margin:6px 0 0; font-size:12px; font-style:italic; color:#ed2024; font-weight:600;">
-                            "A Complete Financial Ecosystem!"
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-                    <p style="margin:20px 0 0; font-size:11px; color:#9ca3af; text-align:center; line-height:1.6;">
-                      This is an automated reminder email. Please do not reply directly to this message.<br>
-                      Copyright 2014 BnC Global Services Pvt. Ltd. All rights reserved.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-            </td>
-          </tr>
-
-          <tr>
-            <td style="background:#ed2024; height:4px; border-radius:0 0 16px 16px;"></td>
-          </tr>
-
-        </table>
-
-      </td>
-    </tr>
-  </table>
-
-</body>
-</html>
-`;
-};
-
-const sendBrevoEmail = async (to: string, subject: string, htmlContent: string) => {
-  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "accept": "application/json",
-      "content-type": "application/json",
-      "api-key": BREVO_API_KEY
-    },
-    body: JSON.stringify({
-      sender: {
-        name: FROM_NAME,
-        email: FROM_EMAIL
-      },
-      to: [{ email: to }],
-      subject,
-      htmlContent
-    })
-  });
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Brevo send failed: ${details}`);
-  }
-};
+const fmtDate = (d: Date) => new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(d);
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return cors();
+  if (!SECRET || (req.headers.get("x-reminder-secret") || req.headers.get("x-tick-secret")) !== SECRET) return json({ error: "Forbidden" }, 403);
 
-  const providedSecret = req.headers.get("x-reminder-secret") || req.headers.get("x-tick-secret") || "";
-  if (!REMINDER_SECRET || providedSecret !== REMINDER_SECRET) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-  }
-
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return new Response(JSON.stringify({ error: "Missing Supabase service credentials." }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-  }
-
-  if (!BREVO_API_KEY) {
-    return new Response(JSON.stringify({ error: "Missing BREVO_API_KEY secret." }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
-    });
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const now = new Date();
-  const sendResults: Array<{ email: string; stage: number; status: string; reason?: string }> = [];
-
+  const results: Record<string, unknown>[] = [];
   try {
-    const { data: partners, error } = await supabase
-      .from("partner_onboarding_progress")
-      .select(`
-        partner_id,
-        partner_email,
-        ai_started_at,
-        ai_last_activity_at,
-        ai_completed_at,
-        agreement_completed_at,
-        last_reminder_stage,
-        reminders_stopped_at,
-        registration_partner_profiles!inner(
-          first_name,
-          last_name,
-          created_at,
-          agreement_signed,
-          agreement_signed_at
-        )
-      `)
-      .is("reminders_stopped_at", null)
-      .order("updated_at", { ascending: false })
-      .limit(MAX_USERS_PER_RUN);
+    const { data: partners, error } = await db.from("registration_partner_profiles")
+      .select("id, email, first_name, last_name, created_at, agreement_signed")
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    if (error) throw error;
 
-    if (error) {
-      throw error;
+    const ids = (partners || []).map((p) => p.id);
+    const [{ data: progress }, { data: sent }] = await Promise.all([
+      db.from("partner_onboarding_progress").select("partner_id, ai_completed_at, agreement_completed_at, last_reminder_stage, reminders_stopped_at").in("partner_id", ids),
+      db.from("crm_follow_up_emails").select("partner_id, status, sent_at, attempted_at, crm_follow_up_email_events(event_name)").in("partner_id", ids),
+    ]);
+    type Progress = { ai_completed_at?: string | null; agreement_completed_at?: string | null; last_reminder_stage?: number | null; reminders_stopped_at?: string | null };
+    const prog = new Map<string, Progress>((progress || []).map((r: Progress & { partner_id: string }) => [r.partner_id, r]));
+    const log = new Map<string, Record<string, { at: string; ok: boolean }>>();
+    // email type = the "type:..." event written when it was sent (manual follow-ups have none)
+    for (const raw of sent || []) {
+      const type = (raw.crm_follow_up_email_events || []).map((x: { event_name: string }) => x.event_name).find((n: string) => n.startsWith("type:"));
+      if (!type) continue;
+      const e = { ...raw, category: type.slice(5) };
+      const m = log.get(e.partner_id) || {};
+      const ok = e.status !== "failed";
+      if (!m[e.category] || (ok && !m[e.category].ok)) m[e.category] = { at: e.sent_at || e.attempted_at, ok };
+      log.set(e.partner_id, m);
     }
 
-    const rows = (partners || []) as PartnerRow[];
-    for (const row of rows) {
-      const recipient = normalizeEmail(row.partner_email);
-      if (!recipient) continue;
+    let count = 0;
+    for (const p of partners || []) {
+      if (count >= MAX_PER_RUN) break;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email || "")) continue;
+      const pr: Progress = prog.get(p.id) || {};
+      const emails = log.get(p.id) || {};
+      const aiDone = Boolean(pr.ai_completed_at);
+      const agreementDone = Boolean(p.agreement_signed || pr.agreement_completed_at);
+      const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+      const registered = new Date(p.created_at);
 
-      const anchorDate = getAnchorDate(row);
-      if (!anchorDate || Number.isNaN(anchorDate.getTime())) continue;
+      // 1. welcome (safety net for new partners only)
+      if (!emails.welcome?.ok) {
+        if (registered < SAFETY_NET_SINCE) continue; // older partners: handled by the old flow
+        const mail = welcomeEmail({ name, email: p.email });
+        const r = await sendEmail({ db, category: "welcome", partnerId: p.id, to: p.email, toName: name, ...mail });
+        results.push({ partner: p.id, email: "welcome", ok: r.ok, error: r.error });
+        count++;
+        continue; // reminders count from the welcome email, so start next run
+      }
 
-      const msPending = now.getTime() - anchorDate.getTime();
-      const hoursPending = Math.floor(msPending / MS_HOUR);
-      const stageDue = getStageByHoursPending(hoursPending);
-      const currentStage = Number(row.last_reminder_stage || 0);
+      if (pr.reminders_stopped_at) continue;
+      const welcomeAt = new Date(emails.welcome.at);
+      const hours = (now.getTime() - welcomeAt.getTime()) / HOUR;
 
-      const aiCompleted = Boolean(row.ai_completed_at);
-      const agreementCompleted = Boolean(
-        row.registration_partner_profiles?.agreement_signed || row.agreement_completed_at || row.registration_partner_profiles?.agreement_signed_at
-      );
-
-      if (aiCompleted && agreementCompleted) {
-        await supabase
-          .from("partner_onboarding_progress")
-          .update({ reminders_stopped_at: now.toISOString() })
-          .eq("partner_id", row.partner_id)
-          .is("reminders_stopped_at", null);
+      if (aiDone && agreementDone) {
+        await db.from("partner_onboarding_progress").upsert({ partner_id: p.id, partner_email: p.email, reminders_stopped_at: now.toISOString() }, { onConflict: "partner_id" });
+        continue;
+      }
+      if (hours >= STOP_AFTER_HOURS) {
+        await db.from("partner_onboarding_progress").upsert({ partner_id: p.id, partner_email: p.email, reminders_stopped_at: now.toISOString() }, { onConflict: "partner_id" });
         continue;
       }
 
-      if (hoursPending >= STOP_HOURS) {
-        await supabase
-          .from("partner_onboarding_progress")
-          .update({ reminders_stopped_at: now.toISOString() })
-          .eq("partner_id", row.partner_id)
-          .is("reminders_stopped_at", null);
-        continue;
-      }
+      // 2-4. the latest reminder that is due and not yet sent (never two in one run)
+      const lastOld = Number(pr.last_reminder_stage || 0);
+      const due = [...STAGES].reverse().find((s) => hours >= s.hours);
+      if (!due) continue;
+      if (due.stage <= lastOld || emails[`reminder_${due.stage}`]?.ok) continue;
 
-      if (stageDue === 0 || stageDue <= currentStage) {
-        continue;
-      }
-
-      const fullName = `${row.registration_partner_profiles?.first_name || ""} ${row.registration_partner_profiles?.last_name || ""}`.trim() || "Partner";
-      const pendingDays = Math.max(1, Math.floor(hoursPending / 24));
-      const deadline = new Date(anchorDate.getTime() + STOP_HOURS * MS_HOUR);
-      const html = renderEmailHtml({
-        name: fullName,
-        email: recipient,
-        daysPending: pendingDays,
-        deadlineDate: formatDate(deadline),
-        aiComplete: aiCompleted,
-        agreementSigned: agreementCompleted
+      const mail = reminderEmail(due.stage, {
+        name, email: p.email, aiDone, agreementDone,
+        deadline: fmtDate(new Date(welcomeAt.getTime() + STOP_AFTER_HOURS * HOUR)),
       });
-      const subject = getSubject(stageDue);
-
-      try {
-        await sendBrevoEmail(recipient, subject, html);
-        await supabase
-          .from("partner_onboarding_progress")
-          .update({
-            last_reminder_stage: stageDue,
-            last_reminder_sent_at: now.toISOString()
-          })
-          .eq("partner_id", row.partner_id);
-        sendResults.push({ email: recipient, stage: stageDue, status: "sent" });
-      } catch (sendError) {
-        sendResults.push({
-          email: recipient,
-          stage: stageDue,
-          status: "failed",
-          reason: String(sendError instanceof Error ? sendError.message : sendError)
-        });
+      const r = await sendEmail({ db, category: `reminder_${due.stage}` as "reminder_1", partnerId: p.id, to: p.email, toName: name, ...mail });
+      if (r.ok) {
+        await db.from("partner_onboarding_progress").upsert({
+          partner_id: p.id, partner_email: p.email, last_reminder_stage: due.stage, last_reminder_sent_at: now.toISOString(),
+        }, { onConflict: "partner_id" });
       }
+      results.push({ partner: p.id, email: `reminder_${due.stage}`, ok: r.ok, error: r.error });
+      count++;
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      scanned: rows.length,
-      sent: sendResults.filter((item) => item.status === "sent").length,
-      failed: sendResults.filter((item) => item.status === "failed").length,
-      details: sendResults
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200
-    });
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught || "Unknown error");
-    return new Response(JSON.stringify({ success: false, error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500
-    });
+    return json({ success: true, scanned: partners?.length || 0, sent: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, details: results });
+  } catch (e) {
+    return json({ success: false, error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });

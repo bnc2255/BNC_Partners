@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useInView } from 'framer-motion';
+import { Glass } from '../components/ui/premium';
 
 const CountUp = ({ value, suffix = '', duration = 1.5 }) => {
   const [count, setCount] = useState(0);
@@ -31,47 +32,36 @@ const CountUp = ({ value, suffix = '', duration = 1.5 }) => {
   return <span ref={ref}>{count}{suffix}</span>;
 };
 
+const STATS = [
+  { value: 84, suffix: '', en: 'Partners worldwide', ar: 'شركاء حول العالم' },
+  { value: 15, suffix: '+', en: 'Products & services', ar: 'المنتجات والخدمات' },
+  { value: 42, suffix: '', en: 'Countries with partner connections', ar: 'دول لدينا فيها شبكة شركاء' },
+  { value: 98, suffix: '%', en: 'Partner satisfaction', ar: 'رضا الشركاء' },
+];
+
 const StatsBar = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
 
   return (
-    <section className="bg-[rgb(46,53,67)] text-white py-10 relative z-20 shadow-xl border-y border-red-500/10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-y-0 md:divide-x divide-white ${isRtl ? 'dir-rtl' : 'dir-ltr'}`}>
-          <div className="p-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#DC2626] mb-1 tracking-tight">
-              <CountUp value={50} suffix="+" />
-            </div>
-            <div className="text-xs sm:text-sm font-medium text-slate-300">
-              {isRtl ? 'الشركاء في جميع أنحاء العالم' : 'Partners Worldwide'}
-            </div>
+    <section className="relative z-20 pt-4 pb-4" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="lg-container">
+        <Glass className="!rounded-[28px] px-4 py-8 sm:px-8 sm:py-10">
+          <div className="grid grid-cols-2 gap-y-8 md:grid-cols-4">
+            {STATS.map((stat, i) => (
+              <div
+                key={stat.en}
+                className={`flex flex-col items-center px-2 text-center ${i > 0 ? 'md:border-s md:border-black/[0.07]' : ''} ${i % 2 === 1 ? 'border-s border-black/[0.07] md:border-s' : ''}`}
+              >
+                <div className="text-[clamp(38px,4.4vw,56px)] font-semibold leading-none tracking-[-0.04em] text-[#1d1d1f]">
+                  <CountUp value={stat.value} />
+                  <span className="text-[#dc2626]">{stat.suffix}</span>
+                </div>
+                <div className="mt-3 text-[13px] text-[#6e6e73] sm:text-[14px]">{isRtl ? stat.ar : stat.en}</div>
+              </div>
+            ))}
           </div>
-          <div className="p-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#DC2626] mb-1 tracking-tight">
-              <CountUp value={15} suffix="+" />
-            </div>
-            <div className="text-xs sm:text-sm font-medium text-slate-300">
-              {isRtl ? 'المنتجات الموزعة' : 'Products Distributed'}
-            </div>
-          </div>
-          <div className="p-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#DC2626] mb-1 tracking-tight">
-              <CountUp value={15} suffix="+" />
-            </div>
-            <div className="text-xs sm:text-sm font-medium text-slate-300">
-              {isRtl ? 'سنوات من الخبرة' : 'Years of Experience'}
-            </div>
-          </div>
-          <div className="p-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#DC2626] mb-1 tracking-tight">
-              <CountUp value={98} suffix="%" />
-            </div>
-            <div className="text-xs sm:text-sm font-medium text-slate-300">
-              {isRtl ? 'رضا الشركاء' : 'Partner Satisfaction'}
-            </div>
-          </div>
-        </div>
+        </Glass>
       </div>
     </section>
   );

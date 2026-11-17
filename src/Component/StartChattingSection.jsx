@@ -314,7 +314,7 @@ const StartChattingSection = ({ embedded = false, compact = false }) => {
                       <button
                         key={`${item.title}-${index}`}
                         onClick={() => handleQuickCardClick(item.title, item.subtitle)}
-                        className={`${compact ? 'p-2 rounded-xl shadow-sm' : 'p-4 rounded-2xl shadow-[0_10px_24px_rgba(15,23,42,0.10)]'} bg-white border border-slate-200/70 ${textAlign} transition-all group hover:-translate-y-1 hover:border-[#DC2626]/30 hover:bg-[#f8faff]`}
+                        className={`${compact ? 'p-2 rounded-xl shadow-sm' : 'p-4 rounded-2xl shadow-[0_10px_24px_rgba(15,23,42,0.10)]'} bg-white border border-slate-200/70 ${textAlign} transition-all group hover:-translate-y-1 hover:border-[#DC2626]/30 hover:bg-[#F5F5F7]`}
                       >
                         <div className={`${compact ? 'text-[11px]' : 'text-sm'} font-semibold text-gray-900 group-hover:text-[#DC2626]`}>{item.title}</div>
                         <div className={`${compact ? 'text-[9px] mt-0.5 leading-snug' : 'text-xs mt-1'} text-gray-500 group-hover:text-[#DC2626]/80`}>{item.subtitle}</div>
@@ -380,7 +380,7 @@ const StartChattingSection = ({ embedded = false, compact = false }) => {
 
             <div className={`bg-white ${compact ? 'p-3' : 'p-4'}`}>
               <div className="relative max-w-3xl mx-auto group">
-                <div className="absolute -inset-3 rounded-3xl bg-gradient-to-r from-[#e6efff] via-[#f5f7ff] to-[#e9f2ff] opacity-0 blur-lg transition-opacity duration-300 group-hover:opacity-100" />
+                <div className="absolute -inset-3 rounded-3xl bg-gradient-to-r from-[#F5F5F7] via-[#f5f7ff] to-[#e9f2ff] opacity-0 blur-lg transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="relative rounded-2xl transition-all duration-300 shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_30px_rgba(220, 38, 38,0.18)]">
                   <input
                   type="text"
@@ -514,7 +514,7 @@ const StartChattingSection = ({ embedded = false, compact = false }) => {
                   {insightCards.map((card, index) => (
                     <div
                       key={index}
-                      className={`flex gap-3 p-3 bg-gradient-to-br from-white to-[#f6f9ff] hover:from-[#eef5ff] hover:to-white rounded-xl cursor-pointer transition-all group border border-[#e6efff] hover:border-[#DC2626]/20 hover:-translate-y-0.5 hover:shadow-md ${rowDirection}`}
+                      className={`flex gap-3 p-3 bg-gradient-to-br from-white to-[#F5F5F7] hover:from-[#eef5ff] hover:to-white rounded-xl cursor-pointer transition-all group border border-[#F5F5F7] hover:border-[#DC2626]/20 hover:-translate-y-0.5 hover:shadow-md ${rowDirection}`}
                     >
                       <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white border border-[#dbe7ff] flex items-center justify-center shadow-sm group-hover:shadow-md">
                         <FileText className="w-5 h-5 text-[#DC2626]" />

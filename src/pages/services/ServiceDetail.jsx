@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import ServiceTaxonomyBand from './ServiceTaxonomyBand';
 import {
   FiEye,
   FiFileText,
@@ -177,6 +178,12 @@ const ServiceDetail = () => {
       label: t('serviceDetail.sections.training.label'),
       heading: t('serviceDetail.sections.training.heading'),
       description: t('serviceDetail.sections.training.description')
+    },
+    {
+      key: 'other',
+      label: t('serviceDetail.sections.other.label'),
+      heading: t('serviceDetail.sections.other.heading'),
+      description: t('serviceDetail.sections.other.description')
     },
     {
       key: 'contact',
@@ -1740,7 +1747,8 @@ const ServiceDetail = () => {
     'know-more': FiInfo,
     manpower: FiUsers,
     enquiry: FiHelpCircle,
-    training: FiBookOpen
+    training: FiBookOpen,
+    other: FiMail
   };
   const ActiveSectionIcon = sectionIconMap[activeSection] || FiInfo;
 
@@ -1781,7 +1789,9 @@ const ServiceDetail = () => {
       ? 'Manpower'
       : activeSection === 'training'
         ? 'Training'
-        : 'Enquiry';
+        : activeSection === 'other'
+          ? 'Other support'
+          : 'Enquiry';
 
     setIsSubmitting(true);
     try {
@@ -1864,17 +1874,20 @@ const ServiceDetail = () => {
   const formTitleMap = {
     manpower: t('serviceDetail.formTitles.manpower'),
     enquiry: t('serviceDetail.formTitles.enquiry', { service: service?.title || '' }),
-    training: t('serviceDetail.formTitles.training')
+    training: t('serviceDetail.formTitles.training'),
+    other: t('serviceDetail.formTitles.other')
   };
   const formCtaMap = {
     manpower: t('serviceDetail.formCtas.manpower'),
     enquiry: t('serviceDetail.formCtas.enquiry'),
-    training: t('serviceDetail.formCtas.training')
+    training: t('serviceDetail.formCtas.training'),
+    other: t('serviceDetail.formCtas.other')
   };
   const messagePlaceholderMap = {
     manpower: t('serviceDetail.messagePlaceholders.manpower'),
     enquiry: t('serviceDetail.messagePlaceholders.enquiry', { service: service?.title || t('serviceDetail.messagePlaceholders.defaultService') }),
-    training: t('serviceDetail.messagePlaceholders.training')
+    training: t('serviceDetail.messagePlaceholders.training'),
+    other: t('serviceDetail.messagePlaceholders.other')
   };
   const formTitle = formTitleMap[activeSection] || t('serviceDetail.requestMoreInfo');
   const formCta = formCtaMap[activeSection] || t('serviceDetail.submitRequest');
@@ -1951,7 +1964,7 @@ const ServiceDetail = () => {
             </p>
             <button
               onClick={() => navigate('/services')}
-              className="bg-[#DC2626] text-white px-5 py-2.5 rounded-xl font-semibold"
+              className="lg-btn lg-btn-ink"
             >
               {t('serviceDetail.backToBncServices')}
             </button>
@@ -1965,26 +1978,12 @@ const ServiceDetail = () => {
   return (
     <>
       <Header />
-      <div className="min-h-screen bg-gradient-to-b from-[#f5f7fb] via-[#f9fbff] to-[#eef2f7]">
+      <div className="min-h-screen bg-gradient-to-b from-[#F5F5F7] via-[#F5F5F7] to-[#F5F5F7]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <ServiceTaxonomyBand serviceId={serviceId} backTo="/services" />
           <div className={`flex flex-col gap-6 ${isRtl ? 'lg:flex-row-reverse' : 'lg:flex-row'}`}>
-            <aside className="lg:w-[32%] lg:sticky lg:top-40 lg:self-start space-y-3 lg:-mt-8">
-              <button
-                onClick={() => {
-                  if (country === 'global') {
-                    navigate('/services/global');
-                  } else {
-                    navigate('/services');
-                  }
-                }}
-                className={`inline-flex items-center gap-2 text-sm font-semibold text-slate-900 hover:text-black transition ${
-                  isRtl ? 'flex-row-reverse' : ''
-                }`}
-              >
-                <span className="text-base">{isRtl ? '→' : '←'}</span>
-                {t('serviceDetail.backToServices')}
-              </button>
-              <div className="border border-slate-200 rounded-2xl bg-white shadow-sm">
+            <aside className="lg:w-[32%] lg:sticky lg:top-40 lg:self-start space-y-3">
+              <div className="lg-card">
                 <div className={`p-6 border-b border-slate-200 ${textAlign}`}>
                     <p className="font-geist text-xs uppercase tracking-[0.2em] text-slate-400">
                       {countryLabel}
@@ -2004,7 +2003,7 @@ const ServiceDetail = () => {
                     onClick={() => setActiveSection(section.key)}
                     className={`group relative w-full ${isRtl ? 'text-right' : 'text-left'} px-4 py-3 rounded-xl border transition ${
                       activeSection === section.key
-                        ? 'bg-[#DC2626]/10 border-[#DC2626]/30 text-[#000000]'
+                        ? 'bg-[#1d1d1f] border-[#1d1d1f] text-white'
                         : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
                   >
@@ -2067,14 +2066,14 @@ const ServiceDetail = () => {
                       )}
                       <div className="mt-5 border-t border-slate-200 pt-5">
                         <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                             <FiEye className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                           <div>
                             <h3 className="font-poppins text-xl font-semibold">
                               {t('serviceDetail.overview')}
                             </h3>
-                            <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                            <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                           </div>
                         </div>
                         {Array.isArray(service.description) && service.description.length > 0 ? (
@@ -2089,17 +2088,17 @@ const ServiceDetail = () => {
                       </div>
                     </div>
 
-                    <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                    <div className="lg-card p-7">
                       <div className={`grid gap-6 md:grid-cols-2 ${sectionPadding}`}>
                         <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                             <FiList className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                           <div>
                             <h3 className="font-poppins text-xl font-semibold">
                               {t('serviceDetail.serviceDetails')}
                             </h3>
-                            <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                            <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                           </div>
                         </div>
                         <style>{`
@@ -2193,7 +2192,7 @@ const ServiceDetail = () => {
                             <button
                               type="button"
                               onClick={handleOpenRequirementModal}
-                              className="inline-flex items-center gap-2 rounded-full bg-[#DC2626] text-white px-5 py-2.5 text-sm font-semibold shadow hover:bg-[#000000] transition"
+                              className="lg-btn lg-btn-ink lg-btn-sm"
                             >
                               {t('serviceDetail.voiceRequirement.button')}
                             </button>
@@ -2203,16 +2202,16 @@ const ServiceDetail = () => {
                     </div>
 
                     {activeSubServiceData && (
-                      <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                      <div className="lg-card p-7">
                         <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                             <FiInfo className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                           <div>
                             <h4 className="font-poppins text-lg font-semibold">
                               {activeSubServiceData.title}
                             </h4>
-                            <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                            <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                           </div>
                         </div>
                         {hasStructuredSubService ? (
@@ -2319,16 +2318,16 @@ const ServiceDetail = () => {
                       </div>
                     )}
 
-                    <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                    <div className="lg-card p-7">
                       <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                        <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                        <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                           <FiFileText className="h-3.5 w-3.5" aria-hidden="true" />
                         </span>
                         <div>
                           <h4 className="font-poppins text-lg font-semibold">
                             {t('serviceDetail.documents')}
                           </h4>
-                          <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                          <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                         </div>
                       </div>
                       <div className={`mt-4 ${sectionPadding}`}>
@@ -2351,7 +2350,7 @@ const ServiceDetail = () => {
                                     href={doc.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-2 text-[#DC2626] hover:text-[#000000] font-semibold"
+                                    className="lg-link"
                                   >
                                     <FiFileText className="h-4 w-4" aria-hidden="true" />
                                     {doc.label}
@@ -2365,16 +2364,16 @@ const ServiceDetail = () => {
                     </div>
                   </>
                 ) : activeSection === 'document-checklist' ? (
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                  <div className="lg-card p-7">
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiFileText className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h3 className="font-poppins text-xl font-semibold">
                           {loanChecklistSection.heading}
                         </h3>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <div className={`mt-5 space-y-5 ${sectionPadding}`}>
@@ -2414,7 +2413,7 @@ const ServiceDetail = () => {
                         href={loanChecklistDocument.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-2 rounded-full bg-[#DC2626] px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-[#000000]"
+                        className="lg-btn lg-btn-ink lg-btn-sm"
                       >
                         <FiFileText className="h-4 w-4" aria-hidden="true" />
                         {loanChecklistDocument.label}
@@ -2422,16 +2421,16 @@ const ServiceDetail = () => {
                     </div>
                   </div>
                 ) : activeSection === 'manpower' ? (
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                  <div className="lg-card p-7">
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiUsers className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h3 className="font-poppins text-xl font-semibold">
                           {t('serviceDetail.manpowerSupport')}
                         </h3>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     {service.manpowerDescription ? (
@@ -2445,18 +2444,18 @@ const ServiceDetail = () => {
                     )}
                   </div>
                 ) : activeSection === 'training' ? (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`grid gap-6 ${isRtl ? 'md:grid-cols-[0.9fr_1.1fr]' : 'md:grid-cols-[1.1fr_0.9fr]'}`}>
                       <div>
                         <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                          <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                             <FiBookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                           </span>
                             <div>
                               <h3 className="font-poppins text-xl font-semibold">
                               {t('serviceDetail.training.title')}
                               </h3>
-                              <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                              <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                             </div>
                           </div>
                         <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -2509,7 +2508,7 @@ const ServiceDetail = () => {
                     </div>
                   </div>
                 ) : activeSection === 'contact' ? (
-                  <div className={`border border-slate-200 rounded-2xl p-6 bg-white ${textAlign}`}>
+                  <div className={`lg-card p-7 ${textAlign}`}>
                     <div className={`flex items-center justify-between flex-wrap gap-4 ${rowDirection}`}>
                       <div className={textAlign}>
                         <h3 className="font-poppins text-xl font-semibold text-gray-900">
@@ -2539,7 +2538,7 @@ const ServiceDetail = () => {
                           </div>
                         </a>
                         <a
-                          href="https://wa.me/919958711796"
+                          href="https://wa.me/919810575613"
                           target="_blank"
                           rel="noreferrer"
                           className="group border border-emerald-200 rounded-2xl bg-white p-5 transition hover:border-emerald-300 hover:shadow-md"
@@ -2550,7 +2549,7 @@ const ServiceDetail = () => {
                                 {t('serviceDetail.contact.whatsapp')}
                               </p>
                               <p className="font-geist text-sm text-emerald-700 mt-2">
-                                +91 99587 11796
+                                +91 98105 75613
                               </p>
                             </div>
                             <div className={`${iconMargin} h-10 w-10 rounded-xl border border-emerald-200 bg-emerald-50 flex items-center justify-center group-hover:border-emerald-300 group-hover:bg-emerald-100 transition`}>
@@ -2579,17 +2578,17 @@ const ServiceDetail = () => {
                       </div>
                     </div>
                   </div>
-                ) : activeSection === 'enquiry' ? (
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                ) : activeSection === 'other' ? null : activeSection === 'enquiry' ? (
+                  <div className="lg-card p-7">
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiHelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h3 className="font-poppins text-xl font-semibold">
                           {t('serviceDetail.enquiryDetails')}
                         </h3>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -2597,16 +2596,16 @@ const ServiceDetail = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                  <div className="lg-card p-7">
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiHelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h3 className="font-poppins text-xl font-semibold">
                           {t('serviceDetail.howWeHelp')}
                         </h3>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 mt-3 ${sectionPadding}`}>
@@ -2616,16 +2615,16 @@ const ServiceDetail = () => {
                 )}
 
                 {activeSection !== 'contact' && activeSection !== 'know-more' && (
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-white">
+                  <div className="lg-card p-7">
                     <div className={`inline-flex items-start gap-2 text-gray-900 ${rowDirection}`}>
-                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#DC2626]">
+                      <span className="inline-flex h-6 w-6 items-center justify-center text-[#1d1d1f]">
                         <FiMail className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <div>
                         <h3 className="font-poppins text-xl font-semibold">
                           {formTitle}
                         </h3>
-                        <div className="mt-2 h-1 w-16 rounded-full bg-gradient-to-r from-[#DC2626] to-[#000000]"></div>
+                        <div className="mt-3 h-px w-10 bg-[#dc2626]"></div>
                       </div>
                     </div>
                     <p className={`font-geist text-gray-600 text-sm mt-3 mb-4 ${sectionPadding}`}>
@@ -2648,7 +2647,7 @@ const ServiceDetail = () => {
                           value={formValues.name}
                           onChange={handleChange}
                           placeholder={t('serviceDetail.form.fullName')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           required
                           readOnly={isLoggedIn}
                         />
@@ -2658,7 +2657,7 @@ const ServiceDetail = () => {
                           value={formValues.email}
                           onChange={handleChange}
                           placeholder={t('serviceDetail.form.email')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           required
                           readOnly={isLoggedIn}
                         />
@@ -2668,7 +2667,7 @@ const ServiceDetail = () => {
                           value={formValues.phone}
                           onChange={handleChange}
                           placeholder={t('serviceDetail.form.phone')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                           readOnly={isLoggedIn}
                         />
                         <input
@@ -2677,7 +2676,7 @@ const ServiceDetail = () => {
                           value={formValues.company}
                           onChange={handleChange}
                           placeholder={t('serviceDetail.form.company')}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                         />
                         <textarea
                           name="message"
@@ -2685,12 +2684,12 @@ const ServiceDetail = () => {
                           onChange={handleChange}
                           rows="4"
                           placeholder={messagePlaceholder}
-                          className={`w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-geist focus:outline-none focus:ring-2 focus:ring-[#DC2626]/20 ${inputAlign}`}
+                          className={`lg-field ${inputAlign}`}
                         />
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="w-full bg-[#DC2626] text-white py-2.5 rounded-xl font-semibold shadow hover:bg-[#000000] transition"
+                          className="lg-btn lg-btn-ink w-full"
                         >
                           {isSubmitting ? t('serviceDetail.submitting') : formCta}
                         </button>

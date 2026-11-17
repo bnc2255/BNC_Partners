@@ -108,7 +108,7 @@ const FakeActivityPopup = () => {
               initial={{ width: "100%" }}
               animate={{ width: "0%" }}
               transition={{ duration: 6, ease: "linear" }}
-              className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-[#DC2626] to-[#0F2A4A]"
+              className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-[#DC2626] to-[#1D1D1F]"
             />
           </div>
         </motion.div>

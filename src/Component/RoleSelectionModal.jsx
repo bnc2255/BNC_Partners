@@ -42,7 +42,7 @@ const RoleSelectionModal = () => {
   const handleSignUp = (role) => {
     setIsVisible(false);
     // Both roles go through the unified PartnerFormModal; role is passed as URL param
-    navigate(`/?open=partner&role=${role}`);
+    navigate(`${window.location.pathname.replace(/^\/ar(?=\/|$)/, '') || '/'}?open=partner&role=${role}`);
   };
 
 
@@ -107,17 +107,17 @@ const RoleSelectionModal = () => {
               I represent a consulting firm or agency and I am looking for verified corporate mandates to work on.
             </p>
 
-            <div className="w-full space-y-2 sm:space-y-3 mt-auto">
+            <div className="w-full mt-auto grid grid-cols-2 gap-3">
               <button
                 onClick={() => handleSignUp('provider')}
-                className="w-full bg-[#0f294a] hover:bg-slate-900 text-white py-2.5 sm:py-3.5 md:py-4 rounded-lg sm:rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm hover:shadow-md"
+                className="h-11 sm:h-12 w-full bg-[#0f294a] hover:bg-slate-900 text-white rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer inline-flex items-center justify-center gap-1 shadow-sm hover:shadow-md"
               >
                 Sign Up &rarr;
               </button>
 
               <button
                 onClick={() => handleLogIn('provider')}
-                className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-2.5 sm:py-3.5 md:py-4 rounded-lg sm:rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+                className="h-11 sm:h-12 w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer inline-flex items-center justify-center"
               >
                 Log In
               </button>
@@ -147,17 +147,17 @@ const RoleSelectionModal = () => {
               I represent a corporation and need to find the right external experts or partners for my specific client needs.
             </p>
 
-            <div className="w-full space-y-2 sm:space-y-3 mt-auto">
+            <div className="w-full mt-auto grid grid-cols-2 gap-3">
               <button
                 onClick={() => handleSignUp('consumer')}
-                className="w-full bg-[#0f294a] hover:bg-slate-900 text-white py-2.5 sm:py-3.5 md:py-4 rounded-lg sm:rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm hover:shadow-md"
+                className="h-11 sm:h-12 w-full bg-[#0f294a] hover:bg-slate-900 text-white rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer inline-flex items-center justify-center gap-1 shadow-sm hover:shadow-md"
               >
                 Sign Up &rarr;
               </button>
 
               <button
                 onClick={() => handleLogIn('consumer')}
-                className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-2.5 sm:py-3.5 md:py-4 rounded-lg sm:rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+                className="h-11 sm:h-12 w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-poppins font-semibold text-xs sm:text-sm transition-all cursor-pointer inline-flex items-center justify-center"
               >
                 Log In
               </button>

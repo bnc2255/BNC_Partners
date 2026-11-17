@@ -12,13 +12,13 @@ const ConsumerBookings = ({ clientBookings, setClientBookings }) => {
         {clientBookings.map(b => (
           <div key={b.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#0F2A4A] text-white flex items-center justify-center font-bold text-sm uppercase">
+              <div className="w-10 h-10 rounded-full bg-[#1D1D1F] text-white flex items-center justify-center font-bold text-sm uppercase">
                 {b.expert.slice(0,2)}
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-900">{b.expert}</h4>
                 <p className="text-xs text-slate-500">{b.service}</p>
-                <p className="text-xs text-[#E52E38] font-bold mt-0.5">{b.date} at {b.time}</p>
+                <p className="text-xs text-[#DC2626] font-bold mt-0.5">{b.date} at {b.time}</p>
               </div>
             </div>
 

@@ -159,7 +159,7 @@ const CompleteProfile = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
-        <h1 className="text-[#DC2626]xl font-semibold text-slate-900">Complete your profile</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Complete your profile</h1>
         <p className="mt-2 text-sm text-slate-600">
           Please provide your phone number, country and city before continuing.
         </p>

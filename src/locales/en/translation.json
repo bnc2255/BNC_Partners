@@ -536,6 +536,11 @@
         "heading": "Looking for training support",
         "description": "We help your teams learn, practice, and deliver with confidence."
       },
+      "other": {
+        "label": "Looking for other support",
+        "heading": "Looking for other support",
+        "description": "Tell us what you need and we will connect you with the right expert."
+      },
       "contact": {
         "label": "Contact",
         "heading": "Immediate Response Contact",
@@ -588,19 +593,22 @@
     "formTitles": {
       "manpower": "Manpower Supply Request Info",
       "enquiry": "Enquiry Service {{service}}",
-      "training": "Training Request Info"
+      "training": "Training Request Info",
+      "other": "Other Support Request"
     },
     "formCtas": {
       "manpower": "Submit Manpower Request",
       "enquiry": "Submit Enquiry",
-      "training": "Submit Training Request"
+      "training": "Submit Training Request",
+      "other": "Submit Request"
     },
     "messagePlaceholders": {
       "manpower": "Tell us your manpower requirement (roles, count, duration, location).",
       "enquiry": "Share your enquiry about {{service}}.",
       "training": "Tell us the training topic, team size, and preferred timeline.",
       "default": "Tell us about your requirement",
-      "defaultService": "this service"
+      "defaultService": "this service",
+      "other": "Tell us what support you are looking for."
     },
     "submitting": "Submitting...",
     "loginRequired": "Please log in so we can pre-fill your details before submitting.",
@@ -2281,6 +2289,11 @@
         "heading": "Looking for training support",
         "description": "We help your teams learn, practice, and deliver with confidence."
       },
+      "other": {
+        "label": "Looking for other support",
+        "heading": "Looking for other support",
+        "description": "Tell us what you need and we will connect you with the right expert."
+      },
       "contact": {
         "label": "Contact us",
         "heading": "Immediate Response Contact",
@@ -2325,7 +2338,8 @@
         "manpower": "Manpower Support Request Info",
         "enquiry": "Consumer Support Enquiry",
         "training": "Training Request Info",
-        "default": "Request More Info"
+        "default": "Request More Info",
+        "other": "Other Support Request"
       },
       "partnerPages": {
         "shared": {
@@ -2444,13 +2458,15 @@
         "manpower": "Submit Manpower Request",
         "enquiry": "Submit Enquiry",
         "training": "Submit Training Request",
-        "default": "Submit Request"
+        "default": "Submit Request",
+        "other": "Submit Request"
       },
       "messagePlaceholder": {
         "manpower": "Tell us your manpower requirement (roles, count, duration, location).",
         "enquiry": "Share your enquiry about global services.",
         "training": "Tell us the training topic, team size, and preferred timeline.",
-        "default": "Tell us about your requirement"
+        "default": "Tell us about your requirement",
+        "other": "Tell us what support you are looking for."
       },
       "helper": "Share your requirements and we will get back to you.",
       "thankYou": "Thank you! Your request has been noted for {{country}}.",

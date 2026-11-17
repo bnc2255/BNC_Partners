@@ -22,7 +22,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { fetchPartnerAIProfile } from '../src/lib/supabaseData';
-import TermsAgreementModal from '../src/Component/TermsAgreementModal';
+import PartnerAgreementModal from '../src/Component/agreement/PartnerAgreementModal';
 
 /* ─── Brand Tokens (matches BnC hero page) ─────────────────────────────────
    Black   : #0f0f0f
@@ -122,8 +122,8 @@ function SectionCard({ icon: IconComponent, title, iconColor = T.blue, children 
           {IconComponent && <IconComponent size={15} style={{ color: iconColor }} />}
         </div>
         <h2
-          className="text-[13px] font-bold tracking-wide uppercase"
-          style={{ color: T.black, fontFamily: 'Poppins, sans-serif', letterSpacing: '0.05em' }}
+          className="text-[14px] font-semibold"
+          style={{ color: T.black }}
         >
           {title}
         </h2>
@@ -158,7 +158,7 @@ function TagPill({ label, variant = 'blue' }) {
   const s = styles[variant] || styles.blue;
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-all hover:shadow-xs"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all hover:shadow-xs"
       style={{ background: s.bg, color: s.color, borderColor: s.border }}
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot }} />
@@ -181,7 +181,7 @@ function InfoRow({ label, value, highlight = false }) {
         {label}
       </span>
       <span
-        className="text-[13px] font-semibold break-words"
+        className="text-[13px] font-medium break-words"
         style={{ color: highlight ? T.blue : T.black }}
       >
         {value || '—'}
@@ -227,19 +227,19 @@ function ExperienceTable({ experienceDetails }) {
         <thead>
           <tr style={{ background: T.bg }}>
             <th
-              className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider rounded-l-lg"
+              className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider rounded-l-lg"
               style={{ color: T.muted }}
             >
               Industry / Role
             </th>
             <th
-              className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider"
+              className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider"
               style={{ color: T.muted }}
             >
               Organisation
             </th>
             <th
-              className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-wider rounded-r-lg"
+              className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-wider rounded-r-lg"
               style={{ color: T.muted }}
             >
               Experience
@@ -253,7 +253,7 @@ function ExperienceTable({ experienceDetails }) {
               className="border-b last:border-0 transition-colors hover:bg-slate-50"
               style={{ borderColor: T.divider }}
             >
-              <td className="px-4 py-3.5 font-semibold" style={{ color: T.black }}>
+              <td className="px-4 py-3.5 font-medium" style={{ color: T.black }}>
                 {capitalize(key)}
               </td>
               <td className="px-4 py-3.5 font-medium" style={{ color: T.blue }}>
@@ -293,7 +293,7 @@ function StatBadge({ icon: IconComponent, label, value, variant = 'blue' }) {
       {IconComponent && <IconComponent size={16} style={{ color: isBlue ? T.blue : T.red }} />}
       <div>
         <p className="text-[11px] font-medium" style={{ color: T.muted }}>{label}</p>
-        <p className="text-[13px] font-bold" style={{ color: T.black }}>{value}</p>
+        <p className="text-[13px] font-semibold" style={{ color: T.black }}>{value}</p>
       </div>
     </div>
   );
@@ -607,19 +607,16 @@ function PartnerAIProfileDetail({ partner, onBack }) {
       </div>
 
       {/* ── Partner Agreement Modal ── */}
-      <TermsAgreementModal
+      <PartnerAgreementModal
         isOpen={isAgreementModalOpen}
         onClose={() => setIsAgreementModalOpen(false)}
+        readOnly
         partnerData={{
           id: p.partnerId || partner?.id,
           firstName: p.name?.split(' ')[0] || partner?.firstName || '',
           lastName: p.name?.split(' ').slice(1).join(' ') || partner?.lastName || '',
           email: p.email || partner?.email,
-          agreementSigned: true,
-          agreementSignedName: p.agreementSignedName || p.name || partner?.name,
-          agreementSignedAt: p.agreementSignedAt
         }}
-        isSigned={true}
       />
     </div>
   );
@@ -697,4 +694,5 @@ function ContactChip({ icon: IconComponent, value }) {
   );
 }
 
-export { PartnerAIProfileDetail };
+// shared building blocks, also used by the new PartnerDetailPage
+export { PartnerAIProfileDetail, T, fmt, fmtTime, capitalize, normalizeTagList, SectionCard, TagList, InfoRow, ExperienceTable, StatBadge, ContactChip };

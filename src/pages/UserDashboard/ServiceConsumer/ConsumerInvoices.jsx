@@ -40,7 +40,7 @@ const ConsumerInvoices = ({ clientInvoices, handlePayInvoice }) => {
                   {inv.status === 'Unpaid' ? (
                     <button
                       onClick={() => handlePayInvoice(inv.id)}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#E52E38] hover:bg-red-700 text-white text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg bg-[#DC2626] hover:bg-red-700 text-white text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
                     >
                       Pay Invoice
                     </button>

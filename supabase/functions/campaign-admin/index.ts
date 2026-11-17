@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       : { data: [] as any[] };
     const eventRows = events || [];
 
-    // Stats: count a send as opened/clicked at most once (SendGrid fires repeats).
+    // Stats: count a send as opened/clicked at most once (the provider can report repeats).
     const openedSends = new Set<string>();
     const clickedSends = new Set<string>();
     let bounced = 0;
@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
       open: { title: "Email opened", detail: "Lead opened the message." },
       click: { title: "Link clicked", detail: "Lead clicked a link in the email." },
       bounce: { title: "Bounced", detail: "The address could not receive the message." },
-      dropped: { title: "Dropped", detail: "SendGrid dropped the message before sending." },
+      dropped: { title: "Dropped", detail: "The email provider dropped the message before sending." },
       deferred: { title: "Deferred", detail: "Delivery temporarily delayed by the recipient server." },
       spamreport: { title: "Marked as spam", detail: "Lead reported the message as spam." },
       unsubscribe: { title: "Unsubscribed", detail: "Lead unsubscribed from emails." },

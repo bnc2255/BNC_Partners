@@ -288,7 +288,7 @@ const RequirementVoiceModal = ({
 
         <div className="px-6 py-6">
           {mode === 'voice' ? (
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f4f8ff] via-white to-[#f9fbff] p-6">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#f4f8ff] via-white to-[#F5F5F7] p-6">
               <div className={`flex flex-col items-center ${textAlign}`}>
                 <div className={`relative h-24 w-24 rounded-full flex items-center justify-center ${
                   isListening ? 'bg-[#DC2626]/10' : 'bg-slate-100'

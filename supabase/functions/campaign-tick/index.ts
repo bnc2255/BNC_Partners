@@ -1,24 +1,25 @@
 // campaign-tick — the Lead Re-engagement execution engine.
 //
 // Invoked every minute by pg_cron (via pg_net.http_post). Pulls due rows from
-// crm_scheduled_jobs and advances each enrollment ONE node: sends email via SendGrid,
-// schedules waits, and branches on the SendGrid events that sendgrid-events recorded.
+// crm_scheduled_jobs and advances each enrollment ONE node: sends email via ZeptoMail,
+// schedules waits, and branches on the open/click/bounce events that /api/zeptomail-webhook recorded.
 //
 // Auth: this function is NOT JWT-protected (cron can't mint a Supabase JWT). It is gated
 // by a shared secret in the `x-tick-secret` header, compared against CAMPAIGN_TICK_SECRET.
 // Deploy with: supabase functions deploy campaign-tick --no-verify-jwt
 //
-// Required secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SENDGRID_API_KEY,
-//   SENDGRID_FROM_EMAIL, SENDGRID_FROM_NAME, CAMPAIGN_TICK_SECRET, OPENAI_API_KEY (for aiEmail).
+// Required secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ZOHO_TOKEN, CAMPAIGN_FROM_EMAIL,
+//   CAMPAIGN_FROM_NAME, CAMPAIGN_TICK_SECRET, OPENAI_API_KEY (for aiEmail).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail } from "../_shared/zeptomail.ts";
+import { shell } from "../_shared/emailLayout.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TICK_SECRET = Deno.env.get("CAMPAIGN_TICK_SECRET") ?? "";
-const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY") ?? "";
-const FROM_EMAIL = Deno.env.get("SENDGRID_FROM_EMAIL") ?? "partners@bncglobal.in";
-const FROM_NAME = Deno.env.get("SENDGRID_FROM_NAME") ?? "BNC CRM";
+const FROM_EMAIL = Deno.env.get("CAMPAIGN_FROM_EMAIL") ?? "partners@bncglobal.in";
+const FROM_NAME = Deno.env.get("CAMPAIGN_FROM_NAME") ?? "BNC LEG Partners";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANSWER_MODEL") ?? "gpt-4.1-mini";
 
@@ -62,41 +63,13 @@ function leadVariables(lead: any, defaults: Record<string, string>): Record<stri
   };
 }
 
-// ---- SendGrid send ----
+// ---- ZeptoMail send (shared sender; logged as category "campaign") ----
+// The send id travels as ZeptoMail's client_reference, so /api/zeptomail-webhook can write
+// opens / clicks / bounces into crm_email_events for the condition nodes below.
+// Template bodies without their own <html> are framed in the BNC LEG design.
 
-async function sendEmail(opts: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-  customArgs: Record<string, string>;
-}): Promise<{ ok: boolean; messageId: string | null; error?: string }> {
-  const payload = {
-    personalizations: [{ to: [{ email: opts.to }], custom_args: opts.customArgs }],
-    from: { email: FROM_EMAIL, name: FROM_NAME },
-    subject: opts.subject,
-    content: [
-      { type: "text/plain", value: opts.text || " " },
-      { type: "text/html", value: opts.html || " " },
-    ],
-    tracking_settings: {
-      click_tracking: { enable: true, enable_text: false },
-      open_tracking: { enable: true },
-    },
-  };
-  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SENDGRID_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (res.status === 202) {
-    return { ok: true, messageId: res.headers.get("x-message-id") };
-  }
-  const body = await res.text();
-  return { ok: false, messageId: null, error: `HTTP ${res.status}: ${body.slice(0, 300)}` };
+function framed(html: string, subject: string): string {
+  return /<html[\s>]/i.test(html) ? html : shell({ subject, inner: `<tr><td class="px" style="padding:40px 48px 40px;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;line-height:26px;color:#4A5568;">${html}</td></tr>`, footerNote: "You are receiving this email because your professional contact details are available to BNC Global Consultech or you have engaged with our communications." });
 }
 
 // ---- OpenAI rewrite for aiEmail nodes ----
@@ -232,21 +205,22 @@ async function executeJob(job: any): Promise<void> {
       if (sendErr) throw new Error(`could not record send: ${sendErr.message}`);
 
       const result = await sendEmail({
+        db: supabase,
+        category: "campaign",
+        draftId: sendRow.id,
         to: String(lead.email),
+        toName: [lead.first_name, lead.last_name].filter(Boolean).join(" ") || String(lead.email),
         subject,
-        html: renderedHtml,
+        html: framed(renderedHtml, subject),
         text,
-        customArgs: {
-          enrollment_id: enrollment.id,
-          node_id: node.id,
-          send_id: sendRow.id,
-          lead_id: String(enrollment.lead_id),
-        },
+        from: { address: FROM_EMAIL, name: FROM_NAME },
+        log: false, // campaign sends are recorded in crm_email_sends
       });
-      if (!result.ok) throw new Error(result.error || "SendGrid send failed");
+      if (!result.ok) throw new Error(result.error || "ZeptoMail send failed");
 
-      if (result.messageId) {
-        await supabase.from("crm_email_sends").update({ sg_message_id: result.messageId }).eq("id", sendRow.id);
+      if (result.requestId) {
+        // column kept from the SendGrid days; now holds the ZeptoMail request id
+        await supabase.from("crm_email_sends").update({ sg_message_id: result.requestId }).eq("id", sendRow.id);
       }
       ctx.last_send_id = sendRow.id;
     }

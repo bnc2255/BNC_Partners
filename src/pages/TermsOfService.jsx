@@ -72,7 +72,7 @@ const sections = [
 
 const TermsOfService = () => {
   return (
-    <section className="bg-[#F7F2ED] py-16 sm:py-20">
+    <section className="bg-[#F5F5F7] py-16 sm:py-20">
       <div className="mx-auto max-w-4xl px-6 lg:px-8">
         <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_24px_60px_rgba(15,23,42,0.08)] sm:p-10">
           <p className="font-poppins text-sm font-semibold uppercase tracking-[0.24em] text-[#DC2626]">

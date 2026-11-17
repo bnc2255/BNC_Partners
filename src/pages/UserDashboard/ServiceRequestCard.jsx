@@ -61,7 +61,7 @@ const ServiceRequestCard = ({ partnerData }) => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. specialized tax consulting"
-              className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-sm focus:border-[#E52E38] focus:ring-1 focus:ring-[#E52E38] outline-none transition-all placeholder:text-slate-400"
+              className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-sm focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626] outline-none transition-all placeholder:text-slate-400"
               required
             />
           </div>
@@ -73,7 +73,7 @@ const ServiceRequestCard = ({ partnerData }) => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Briefly describe what you need..."
-              className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-sm focus:border-[#E52E38] focus:ring-1 focus:ring-[#E52E38] outline-none transition-all placeholder:text-slate-400 resize-none min-h-[80px]"
+              className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 text-sm focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626] outline-none transition-all placeholder:text-slate-400 resize-none min-h-[80px]"
               required
             />
           </div>
@@ -85,7 +85,7 @@ const ServiceRequestCard = ({ partnerData }) => {
           <button
             type="submit"
             disabled={status === 'loading'}
-            className="w-full py-3 rounded-xl bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md disabled:opacity-70 flex justify-center items-center cursor-pointer"
+            className="w-full py-3 rounded-xl bg-[#1D1D1F] hover:bg-[#1D1D1F] text-white font-bold text-xs uppercase tracking-wider transition-all shadow-md disabled:opacity-70 flex justify-center items-center cursor-pointer"
           >
             {status === 'loading' ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

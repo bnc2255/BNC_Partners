@@ -4,6 +4,8 @@ import { FaBriefcase, FaUserTie } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { checkPartnerEmailExists, registerPartner } from '../lib/supabaseData';
+import { claimPendingSponsor } from '../lib/referrals';
+import ReferralCodeStep from './referrals/ReferralCodeStep';
 
 const TOTAL_STEPS = 4;
 
@@ -138,6 +140,9 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
         password: formData.password,
         loginRole: selectedRole || 'provider'
       });
+      // joined through a partner's referral link? place them in that partner's chain
+      // (retried from the Referrals tab if the session isn't ready yet)
+      claimPendingSponsor().catch(() => {});
 
       setIsSubmitted(true);
     } catch (error) {
@@ -175,10 +180,10 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
     return (
       <div className="fixed inset-0 z-[9999] overflow-y-auto">
         <div className="flex min-h-screen items-start justify-center px-3 pt-3 pb-6 text-center sm:items-center sm:px-4 sm:pt-4 sm:pb-20">
-          <div className="fixed inset-0 bg-black/50"></div>
+          <div className="fixed inset-0 bg-black/25 backdrop-blur-[6px]"></div>
 
           <div className={`relative inline-block w-full max-w-2xl my-3 overflow-visible ${textAlign} align-middle z-10 sm:my-8`}>
-            <div className="overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="overflow-hidden rounded-[30px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_40px_80px_-30px_rgba(0,0,0,0.45)]">
             <button
               onClick={handleLoginRedirect}
               className={`absolute top-4 ${closePosition} text-gray-400 hover:text-gray-600 transition-colors z-10`}
@@ -196,6 +201,7 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
               <p className="text-sm text-gray-500 mb-4">
                 Your registered email: <span className="font-medium text-gray-700">{formData.email}</span>
               </p>
+              <ReferralCodeStep />
               <div className="aspect-w-16 aspect-h-9 w-full mb-6 relative" style={{ paddingBottom: '56.25%' }}>
                 <iframe
                   className="absolute top-0 left-0 w-full h-full rounded-lg"
@@ -219,9 +225,9 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
       case 1:
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h3>
+            <h3 className="mb-5 text-[19px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">Personal Information</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="lg-label">
                 Full Name
               </label>
               <input
@@ -229,8 +235,8 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#254C89] focus:border-transparent ${inputAlign} ${
-                  errors.fullName ? 'border-red-500' : 'border-gray-300'
+                className={`lg-field ${inputAlign} ${
+                  errors.fullName ? 'is-error' : ''
                 }`}
                 placeholder="Enter your full name"
               />
@@ -242,9 +248,9 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
       case 2:
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Contact Information</h3>
+            <h3 className="mb-5 text-[19px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">Contact Information</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="lg-label">
                 Email
               </label>
               <input
@@ -252,8 +258,8 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#254C89] focus:border-transparent ${inputAlign} ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
+                className={`lg-field ${inputAlign} ${
+                  errors.email ? 'is-error' : ''
                 }`}
                 placeholder="Enter your email"
               />
@@ -266,9 +272,9 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
       case 3:
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Create Password</h3>
+            <h3 className="mb-5 text-[19px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">Create Password</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="lg-label">
                 Password
               </label>
               <div className="relative">
@@ -277,8 +283,8 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 ${passPadding} border rounded-lg focus:ring-2 focus:ring-[#254C89] focus:border-transparent ${inputAlign} ${
-                    errors.password ? 'border-red-500' : 'border-gray-300'
+                  className={`lg-field ${passPadding} ${inputAlign} ${
+                    errors.password ? 'is-error' : ''
                   }`}
                   placeholder="Create a password"
                 />
@@ -308,25 +314,25 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={() => { setSelectedRole('provider'); setErrors(prev => ({ ...prev, role: '' })); }}
-                className={`flex flex-col items-center gap-3 p-5 rounded-xl border-2 transition-all cursor-pointer text-center ${
+                className={`flex flex-col items-center gap-3 p-5 rounded-[20px] border-2 transition-all cursor-pointer text-center ${
                   selectedRole === 'provider'
-                    ? 'border-[#0f294a] bg-[#0f294a]/5 shadow-md'
+                    ? 'border-[#1D1D1F] bg-white shadow-[0_18px_40px_-22px_rgba(0,0,0,0.4)]'
                     : 'border-gray-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  selectedRole === 'provider' ? 'bg-[#0f294a] text-white' : 'bg-slate-100 text-slate-500'
+                  selectedRole === 'provider' ? 'bg-[#1D1D1F] text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
                   <FaBriefcase className="w-5 h-5" />
                 </div>
                 <div>
                   <p className={`font-semibold text-sm ${
-                    selectedRole === 'provider' ? 'text-[#0f294a]' : 'text-slate-700'
+                    selectedRole === 'provider' ? 'text-[#1D1D1F]' : 'text-slate-700'
                   }`}>Service Provider</p>
                   <p className="text-xs text-slate-400 mt-0.5">Claim mandates & earn</p>
                 </div>
                 {selectedRole === 'provider' && (
-                  <span className="text-xs font-semibold text-white bg-[#0f294a] px-2 py-0.5 rounded-full">Selected</span>
+                  <span className="text-xs font-semibold text-white bg-[#1D1D1F] px-2 py-0.5 rounded-full">Selected</span>
                 )}
               </button>
 
@@ -334,7 +340,7 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={() => { setSelectedRole('consumer'); setErrors(prev => ({ ...prev, role: '' })); }}
-                className={`flex flex-col items-center gap-3 p-5 rounded-xl border-2 transition-all cursor-pointer text-center ${
+                className={`flex flex-col items-center gap-3 p-5 rounded-[20px] border-2 transition-all cursor-pointer text-center ${
                   selectedRole === 'consumer'
                     ? 'border-[#DC2626] bg-[#DC2626]/5 shadow-md'
                     : 'border-gray-200 bg-white hover:border-slate-300 hover:bg-slate-50'
@@ -368,32 +374,33 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
       <div className="flex min-h-screen items-start justify-center px-3 pt-3 pb-6 text-center sm:items-center sm:px-4 sm:pt-4 sm:pb-20">
-        <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
+        <div className="fixed inset-0 bg-black/25 backdrop-blur-[6px]" onClick={onClose}></div>
 
         <div className={`relative inline-block w-full max-w-xl my-3 overflow-visible ${textAlign} align-middle z-10 sm:my-8`}>
-          <div className="overflow-hidden rounded-2xl bg-white shadow-xl">
-          <div className="relative bg-gradient-to-r from-[#254C89] to-[#B91C1C] px-4 py-4 text-white sm:px-6">
+          <div className="overflow-hidden rounded-[30px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_40px_80px_-30px_rgba(0,0,0,0.45)]">
+          <div className="relative border-b border-black/[0.06] bg-[#f5f5f7] px-6 pt-6 pb-5 sm:px-8">
             <button
               onClick={onClose}
-              className={`absolute top-4 ${closePosition} text-white hover:text-gray-200 transition-colors`}
+              aria-label="Close"
+              className={`absolute top-5 ${closePosition} grid h-9 w-9 place-items-center rounded-full text-[#6e6e73] transition-colors hover:bg-black/[0.05] hover:text-[#1d1d1f]`}
             >
-              <FaTimes size={18} />
+              <FaTimes size={14} />
             </button>
-            <h2 className="mb-1 pr-8 text-lg font-bold sm:text-xl">Partner Application</h2>
-            <p className="text-red-100 text-sm">Join our growing network of partners</p>
+            <span className="lg-eyebrow is-red">Partner application</span>
+            <h2 className="mt-3 pe-10 text-[26px] font-semibold tracking-[-0.025em] text-[#1d1d1f]">Join our growing network.</h2>
             <div className={`mt-3 flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between sm:text-sm ${rowDirection}`}>
-              <span className="text-sm">Step {currentStep} of {TOTAL_STEPS}</span>
-              <span className="text-sm">{Math.round((currentStep / TOTAL_STEPS) * 100)}% complete</span>
+              <span className="text-[13px] text-[#6e6e73]">Step {currentStep} of {TOTAL_STEPS}</span>
+              <span className="text-[13px] text-[#86868b]">{Math.round((currentStep / TOTAL_STEPS) * 100)}% complete</span>
             </div>
-            <div className="w-full bg-[#1a3d6b] rounded-full h-2 mt-2">
+            <div className="mt-2 h-1 w-full rounded-full bg-black/[0.08]">
               <div
-                className="bg-white h-2 rounded-full transition-all duration-300"
+                className="h-1 rounded-full bg-[#1d1d1f] transition-all duration-500"
                 style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
               ></div>
             </div>
           </div>
 
-          <div className="overflow-visible p-4 sm:p-8">
+          <div className="overflow-visible p-6 sm:p-8">
             {renderStep()}
 
             <div className={`mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between ${rowDirection}`}>
@@ -401,7 +408,7 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex w-full items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors sm:w-auto"
+                  className="lg-btn lg-btn-outline w-full sm:w-auto"
                 >
                   <FaArrowLeft className={isRtl ? 'ml-2 flipInRtl' : 'mr-2'} size={14} />
                   Back
@@ -413,10 +420,10 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                   type="button"
                   onClick={handleNext}
                   disabled={currentStep === 2 && emailExists}
-                  className={`flex w-full items-center justify-center px-6 py-2 rounded-lg font-semibold transition-colors sm:w-auto ${autoMargin} ${
+                  className={`lg-btn w-full sm:w-auto ${autoMargin} ${
                     currentStep === 2 && emailExists
-                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                      : 'bg-[#254C89] hover:bg-[#B91C1C] text-white'
+                      ? 'bg-[#e3e3e8] text-[#86868b] cursor-not-allowed'
+                      : 'lg-btn-ink'
                   }`}
                 >
                   Next
@@ -427,10 +434,10 @@ const PartnerFormModal = ({ isOpen, onClose }) => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting || !selectedRole}
-                  className={`w-full px-6 py-2 rounded-lg font-semibold transition-colors sm:w-auto ${autoMargin} ${
+                  className={`lg-btn w-full sm:w-auto ${autoMargin} ${
                     !selectedRole
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-[#DC2626] hover:bg-[#B91C1C] text-white disabled:opacity-50'
+                      ? 'bg-[#e3e3e8] text-[#86868b] cursor-not-allowed'
+                      : 'lg-btn-red disabled:opacity-50'
                   }`}
                 >
                   {isSubmitting ? 'Submitting...' : 'Create Account'}

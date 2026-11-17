@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getSessionUser, submitExpertRequest } from '../lib/supabaseData';
 
-const ExpertFormModal = ({ isOpen, onClose }) => {
+const ExpertFormModal = ({ isOpen, onClose, presetFramework = '' }) => {
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
   const [formData, setFormData] = useState({
@@ -11,7 +11,7 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
     email: '',
     mobile: '',
     requirement: '',
-    framework: ''
+    framework: presetFramework
   });
   const [isSessionUser, setIsSessionUser] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,6 +22,9 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
     if (!isOpen) return;
 
     let isMounted = true;
+
+    // opened from a service card: pre-select that service
+    if (presetFramework) setFormData((prev) => ({ ...prev, framework: presetFramework }));
 
     const hydrateForm = async () => {
       setSubmitError('');
@@ -66,7 +69,7 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
     return () => {
       isMounted = false;
     };
-  }, [isOpen]);
+  }, [isOpen, presetFramework]);
 
   if (!isOpen) return null;
 
@@ -103,8 +106,8 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-0">
-      <div className="bg-white w-full max-w-2xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto rounded-lg shadow-2xl flex flex-col relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-[6px] sm:p-0">
+      <div className="relative flex h-full w-full max-w-2xl flex-col overflow-y-auto rounded-[30px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_40px_80px_-30px_rgba(0,0,0,0.45)] sm:h-auto sm:max-h-[90vh]">
         <div className="p-6 flex items-center justify-between border-b border-gray-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2 text-[#000000] font-bold tracking-wide">
             <img src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png" alt="BNC Logo" className="h-8 w-auto" />
@@ -130,7 +133,7 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-8 py-3 bg-[#000000] text-white font-medium rounded-lg hover:bg-[#142c64] transition-colors"
+                className="px-8 py-3 bg-[#000000] text-white font-medium rounded-lg hover:bg-[#1D1D1F] transition-colors"
               >
                 {t('expertFormModal.success.close')}
               </button>
@@ -239,7 +242,7 @@ const ExpertFormModal = ({ isOpen, onClose }) => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-8 py-3 bg-[#000000] text-white font-medium rounded-lg hover:bg-[#142c64] transition-colors flex items-center gap-2 disabled:opacity-60"
+                    className="px-8 py-3 bg-[#000000] text-white font-medium rounded-lg hover:bg-[#1D1D1F] transition-colors flex items-center gap-2 disabled:opacity-60"
                   >
                     {isSubmitting ? t('expertFormModal.actions.submitting') : t('expertFormModal.actions.submit')}
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -3,7 +3,7 @@ import { WorldMap } from '../components/ui/world-map';
 
 const WorldMapSection = () => {
   return (
-    <section className="relative py-16 bg-[#f5f7fb] overflow-hidden">
+    <section className="relative py-16 bg-[#F5F5F7] overflow-hidden">
       <div className="absolute -top-28 right-0 h-72 w-72 rounded-full bg-[#DC2626]/10 blur-3xl" />
       <div className="absolute bottom-0 -left-16 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

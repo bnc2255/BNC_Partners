@@ -2,11 +2,11 @@ import React from 'react';
 
 const ProviderCalendar = ({ providerConsultations, setProviderConsultations }) => {
   return (
-    <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm animate-fade-in">
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div className="flex items-center space-x-3">
-          <div className="w-1.5 h-7 bg-[#E52E38] rounded-full"></div>
+          <div className="w-1.5 h-7 bg-[#DC2626] rounded-full"></div>
           <div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Consultation Calendar</h2>
             <p className="text-xs text-slate-500 font-medium mt-0.5">Keep track of your scheduled corporate sessions.</p>
@@ -19,7 +19,7 @@ const ProviderCalendar = ({ providerConsultations, setProviderConsultations }) =
         {providerConsultations.map((c) => (
           <div key={c.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 transition-all duration-300">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-[#0F2A4A] text-white flex flex-col items-center justify-center shrink-0 font-bold">
+              <div className="w-14 h-14 rounded-xl bg-[#1D1D1F] text-white flex flex-col items-center justify-center shrink-0 font-bold">
                 <span className="text-[9px] uppercase tracking-wider">{c.date.split(' ')[0]}</span>
                 <span className="text-lg font-black leading-none">{c.date.split(' ')[1].replace(',', '')}</span>
               </div>
@@ -33,7 +33,7 @@ const ProviderCalendar = ({ providerConsultations, setProviderConsultations }) =
                 href={c.link}
                 target="_blank"
                 rel="noreferrer"
-                className="px-4 py-2 rounded-lg bg-[#0F2A4A] text-white text-xs font-bold hover:bg-[#0A1D34] transition-all cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#1D1D1F] text-white text-xs font-bold hover:bg-[#1D1D1F] transition-all cursor-pointer"
               >
                 Launch Meet Call
               </a>
@@ -43,7 +43,7 @@ const ProviderCalendar = ({ providerConsultations, setProviderConsultations }) =
                     setProviderConsultations(prev => prev.filter(item => item.id !== c.id));
                   }
                 }}
-                className="px-4 py-2 rounded-lg border border-red-200 text-[#E52E38] text-xs font-bold hover:bg-red-50 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-lg border border-red-200 text-[#DC2626] text-xs font-bold hover:bg-red-50 transition-all cursor-pointer"
               >
                 Cancel Call
               </button>

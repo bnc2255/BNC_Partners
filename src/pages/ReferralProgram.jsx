@@ -1,1222 +1,404 @@
-import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import ReferralVideoDrawer from "../Component/ReferralVideoDrawer";
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Briefcase, UserPlus, Network, BadgePercent, Lock, Send, MessageCircle, Trophy, Handshake, Sprout,
+  Globe2, Layers, Inbox, Eye, TrendingUp, ShieldCheck, Landmark, Users, MapPin, CheckCircle2, LayoutDashboard,
+} from 'lucide-react';
+import { Reveal, SectionHeading } from '../components/ui/premium';
+import ReferralVideoDrawer from '../Component/ReferralVideoDrawer';
+import ReferralChainFlow from '../Component/referrals/ReferralChainFlow';
+import ReferralFormModal from '../Component/referrals/ReferralFormModal';
+import ContactTeamModal from '../Component/referrals/ContactTeamModal';
+import { getPendingRefCode, getReferralAccess, getReferralSettings, lookupReferralCode } from '../lib/referrals';
 
-// ─────────────────────────────────────────────
-//  DESIGN TOKENS (BNC THEME)
-// ─────────────────────────────────────────────
-const G = {
-  gold: "#DC2626",
-  goldMid: "#4E7FC2",
-  goldLight: "#7FB0F3",
-  goldBg: "#F1F6FF",
-  goldTint: "#E8F1FF",
-  cream: "#F7F2ED",
-  creamDark: "#EFE7DD",
-  white: "#FFFFFF",
-  ink: "#1E293B",
-  inkMid: "#334155",
-  muted: "#64748B",
-  border: "#E2E8F0",
-  borderLight: "#EEF2F7",
-  green: "#1F7A5A",
-  greenBg: "#EAF7F2",
-  greenBorder: "#7AD4B4",
-  blue: "#DC2626",
-  blueBg: "#E8F1FF",
-  blueBorder: "#4E7FC2",
-  purple: "#5B6EE1",
-  purpleBg: "#EEF2FF",
-  purpleBorder: "#7B8CF0",
-  client: "#B45309",
-  clientBg: "#FFF7ED",
-  clientBorder: "#FDBA74",
+// Referral program page (registered partners only): explains the model.
+// A partner's own referrals, earnings and share link live in Dashboard > Referrals.
+// Money is earned only for clients/projects we take on (up to 5%); introducing a
+// partner places them in your chain, and you earn a small bonus whenever anyone
+// below you (any level) brings a project.
+
+const RULES = [
+  { Icon: Briefcase, title: 'Bring a project, earn up to 5%', text: 'Refer a client who takes a project or service from us. Once it is processed, you receive up to 5% of the project value.' },
+  { Icon: UserPlus, title: 'Clients do not need to join', text: 'Bring your own project or someone else’s. The client never has to become a partner for you to earn.' },
+  { Icon: Network, title: 'Chain bonus at every level', text: 'Partners who join through your link sit below you in your chain. When anyone below you brings a project, at any level, you receive a small share.' },
+  { Icon: BadgePercent, title: 'No payment for recruiting', text: 'Introducing a new partner does not earn a referral amount by itself. Earnings start only when a project comes in.' },
+];
+
+const PRINCIPLES = [
+  ['Project-triggered rewards', 'Referral amounts are paid only when a client project is processed.'],
+  ['Unlimited levels', 'Your chain can grow to any depth. Every level above the project bringer shares the chain pool.'],
+  ['Closer earns more', 'Within the chain pool, the partner nearest to the project bringer receives the largest share.'],
+  ['No self-referrals', 'Self-referrals and circular chains are blocked automatically.'],
+  ['Clear status', 'Every referral moves through Pending, In review, Approved and Paid, visible in your dashboard.'],
+  ['BNC confirms the split', 'BNC confirms the project value and final % for each project before payout.'],
+];
+
+const BENEFITS = [
+  { Icon: Globe2, title: 'Go global', text: 'Join a worldwide league of professionals, with reach in markets you have never had to enter alone.' },
+  { Icon: Inbox, title: 'International clients', text: 'Clients from many markets come to the league looking for people like you.' },
+  { Icon: Layers, title: 'Multi-dimensional services', text: 'Call on audit, tax, legal, ESG and technology experts as one team, under one standard.' },
+  { Icon: ShieldCheck, title: 'Your client stays yours', text: 'You lead. The league fills the gaps. Your client relationship stays yours.' },
+  { Icon: Eye, title: 'Complete transparency', text: 'Every lead, decision and fee is recorded openly, because a league runs on trust.' },
+  { Icon: TrendingUp, title: 'Multiply your fees', text: 'Every referral, delivery, lead and training session adds a new line to your earnings.' },
+];
+
+const GLOBAL_STATS = [
+  { value: '42', label: 'Countries served' },
+  { value: '84', label: 'Partners' },
+  { value: '15+', label: 'Years of experience' },
+  { value: '98%', label: 'Partner satisfaction' },
+];
+
+const fmt = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+// split of the chain pool between levels above the project bringer (matches the database)
+const chainShares = (value, pool, levels, mode) => {
+  const total = value * pool / 100;
+  if (levels <= 0) return [];
+  const w = Array.from({ length: levels }, (_, i) => (mode === 'equal' ? 1 : 0.5 ** i));
+  const sum = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => (total * x) / sum);
 };
 
-const FONT_HEAD = "var(--font-head)";
-const FONT_BODY = "var(--font-body)";
-const FONT_EMOJI = "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
-
-// ─────────────────────────────────────────────
-//  HOOK: SCROLL INTO VIEW
-// ─────────────────────────────────────────────
-function useInView(threshold = 0.12) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+function Gate({ signedIn }) {
+  // visitors arriving from a partner's link see who invited them
+  const [inviter, setInviter] = useState('');
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) setVisible(true);
-      },
-      { threshold }
+    const code = getPendingRefCode();
+    if (code) lookupReferralCode(code).then((n) => n && setInviter(n)).catch(() => {});
+  }, []);
+
+  if (inviter && !signedIn) {
+    return (
+      <section className="lg-section">
+        <div className="lg-container">
+          <div className="mx-auto max-w-xl border border-[#E3E3E8] bg-white p-8 text-center sm:p-12" style={{ borderRadius: '44px 12px 44px 12px' }}>
+            <p className="lg-eyebrow is-red">You&rsquo;re invited</p>
+            <h1 className="mt-4 text-2xl font-semibold text-[#1D1D1F] sm:text-3xl">{inviter} invited you to become a partner with BNC Global Consultech</h1>
+            <p className="mt-3 text-sm text-[#6E6E73]">Join the BNC Global Partner League across 42 countries. Your invite code is saved and applied when you register.</p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Link to="/?open=partner" className="lg-pbtn lg-pbtn-dark !px-6 !py-3 text-sm">Become a partner</Link>
+              <Link to="/login" className="lg-pbtn lg-pbtn-light !px-6 !py-3 text-sm">I already have an account</Link>
+            </div>
+          </div>
+        </div>
+      </section>
     );
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return [ref, visible];
-}
+  }
 
-// ─────────────────────────────────────────────
-//  FADE-IN WRAPPER
-// ─────────────────────────────────────────────
-function FadeIn({ children, delay = 0, style = {} }) {
-  const [ref, visible] = useInView();
   return (
-    <div
-      ref={ref}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(28px)",
-        transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-//  SECTION LABEL
-// ─────────────────────────────────────────────
-function Label({ children, rtl = false }) {
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 10,
-        flexDirection: rtl ? "row-reverse" : "row",
-        fontFamily: FONT_BODY,
-        fontWeight: 600,
-        fontSize: "0.7rem",
-        letterSpacing: "0.16em",
-        textTransform: "uppercase",
-        color: G.goldMid,
-        marginBottom: "0.9rem",
-      }}
-    >
-      <span
-        style={{
-          width: 28,
-          height: 1.5,
-          background: G.goldMid,
-          display: "inline-block",
-        }}
-      />
-      {children}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-//  SECTION WRAPPER
-// ─────────────────────────────────────────────
-function Sec({ id, bg = G.white, children, pad = "5.5rem 1.5rem", rtl = false }) {
-  return (
-    <section id={id} style={{ background: bg, padding: pad }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", textAlign: rtl ? "right" : "left" }}>{children}</div>
+    <section className="lg-section">
+      <div className="lg-container">
+        <div className="mx-auto max-w-xl border border-[#E3E3E8] bg-white p-8 text-center sm:p-12" style={{ borderRadius: '44px 12px 44px 12px' }}>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#F5F5F7]"><Lock className="h-6 w-6 text-[#1D1D1F]" /></span>
+          <h1 className="mt-5 text-2xl font-semibold text-[#1D1D1F] sm:text-3xl">For registered partners</h1>
+          <p className="mt-3 text-sm text-[#6E6E73]">
+            The referral program is open to partners who have completed registration with BNC. {signedIn ? 'Complete your partner registration to get access.' : 'Sign in or become a partner to continue.'}
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            {!signedIn && <Link to="/login" className="lg-pbtn lg-pbtn-dark !px-6 !py-3 text-sm">Partner sign in</Link>}
+            <Link to="/?open=partner" className="lg-pbtn lg-pbtn-light !px-6 !py-3 text-sm">Become a partner</Link>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-// ─────────────────────────────────────────────
-//  ANIMATED REFERRAL CHAIN
-// ─────────────────────────────────────────────
-function ReferralChain({ nodes = [], connectors = [], rtl = false }) {
-  const [activeStep, setActiveStep] = useState(0);
-  const [ref, visible] = useInView(0.1);
 
-  useEffect(() => {
-    if (!visible) return;
-    const t = setInterval(() => setActiveStep((s) => (s >= 3 ? 0 : s + 1)), 1900);
-    return () => clearInterval(t);
-  }, [visible]);
-
+function EarnCards({ maxPct, pool }) {
+  const cards = [
+    { Icon: Trophy, tag: 'Primary earner', who: 'Project bringer', head: `Up to ${maxPct}% of the project`, text: 'The partner who brings the client project receives the main referral amount.', red: true },
+    { Icon: Handshake, tag: 'Chain level 1', who: 'Direct introducer', head: 'Largest chain share', text: `The partner who introduced the project bringer gets the biggest part of the ${pool}% chain pool.` },
+    { Icon: Sprout, tag: 'Higher levels', who: 'Everyone above', head: 'A smaller share each', text: 'Every partner further up the chain, at any depth, receives a smaller share of the pool.' },
+  ];
   return (
-    <div ref={ref}>
-      <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0,
-            overflowX: "auto",
-            overflowY: "visible",
-            paddingTop: 16,
-            paddingBottom: 8,
-            flexDirection: rtl ? "row-reverse" : "row",
-          }}
-        >
-        {nodes.map((n, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 120 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
-              <div
-                style={{
-                  width: 70,
-                  height: 70,
-                  borderRadius: "50%",
-                  border: `2.5px solid ${activeStep >= i ? n.border : G.border}`,
-                  background: activeStep >= i ? n.bg : G.white,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontFamily: FONT_HEAD,
-                  fontWeight: 700,
-                  fontSize: n.isClient ? "1.6rem" : "1.4rem",
-                  color: activeStep >= i ? n.color : G.muted,
-                  transform: activeStep === i ? "scale(1.13)" : "scale(1)",
-                  boxShadow:
-                    activeStep === i ? `0 8px 28px ${n.border}50` : "0 2px 10px rgba(0,0,0,0.06)",
-                  transition: "all 0.45s cubic-bezier(0.34,1.56,0.64,1)",
-                  position: "relative",
-                }}
-              >
-                <span style={{ fontFamily: n.isClient ? FONT_EMOJI : FONT_HEAD }}>{n.letter}</span>
-                {activeStep === i && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: -8,
-                      borderRadius: "50%",
-                      border: `2px solid ${n.border}55`,
-                      animation: "ripple 1.2s ease-out infinite",
-                    }}
-                  />
-                )}
-              </div>
-              <div
-                style={{
-                  fontFamily: FONT_BODY,
-                  fontWeight: 700,
-                  fontSize: "0.84rem",
-                  color: activeStep >= i ? n.color : G.muted,
-                  marginTop: 10,
-                  transition: "color 0.4s",
-                }}
-              >
-                {n.name}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.72rem",
-                  color: G.muted,
-                  textAlign: "center",
-                  maxWidth: 110,
-                  lineHeight: 1.45,
-                  marginTop: 3,
-                }}
-              >
-                {n.sub}
-              </div>
-            </div>
-
-            {i < nodes.length - 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  flexShrink: 0,
-                  gap: 5,
-                  marginBottom: 34,
-                }}
-              >
-                <div
-                  style={{
-                    width: 44,
-                    height: 2,
-                    position: "relative",
-                    background:
-                      activeStep > i
-                        ? `linear-gradient(${rtl ? "270deg" : "90deg"}, ${n.border}, ${nodes[i + 1].border})`
-                        : G.border,
-                    transition: "background 0.5s",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: -4.5,
-                      width: 0,
-                      height: 0,
-                      borderTop: "5.5px solid transparent",
-                      borderBottom: "5.5px solid transparent",
-                      ...(rtl
-                        ? { left: -5, borderRight: `7px solid ${activeStep > i ? nodes[i + 1].border : G.border}` }
-                        : { right: -5, borderLeft: `7px solid ${activeStep > i ? nodes[i + 1].border : G.border}` }),
-                      transition: "border-color 0.5s",
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.62rem",
-                    color: activeStep > i ? G.goldMid : G.muted,
-                    fontStyle: "italic",
-                    fontFamily: FONT_BODY,
-                    transition: "color 0.4s",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {connectors[i]}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: "1.5rem" }}>
-        {nodes.map((_, i) => (
-          <div
-            key={i}
-            onClick={() => setActiveStep(i)}
-            style={{
-              width: i === activeStep ? 28 : 8,
-              height: 8,
-              borderRadius: 4,
-              background: i <= activeStep ? G.goldMid : G.border,
-              transition: "all 0.35s",
-              cursor: "pointer",
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-
-// ─────────────────────────────────────────────
-//  OUTCOME CARDS — what each partner earns
-// ─────────────────────────────────────────────
-function OutcomeCard({ card, delay, rtl = false }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <FadeIn delay={delay}>
-      <div
-        onMouseEnter={() => setHov(true)}
-        onMouseLeave={() => setHov(false)}
-        style={{
-          background: hov ? card.bg : G.white,
-          border: `1px solid ${hov ? card.border : G.border}`,
-          borderTop: `3px solid ${card.border}`,
-          borderRadius: 16,
-          padding: "1.8rem",
-          transform: hov ? "translateY(-5px)" : "translateY(0)",
-          boxShadow: hov ? `0 16px 40px ${card.border}28` : "0 2px 12px rgba(0,0,0,0.05)",
-          transition: "all 0.27s",
-          cursor: "default",
-          height: "100%",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginBottom: "1.1rem",
-            flexDirection: rtl ? "row-reverse" : "row",
-            textAlign: rtl ? "right" : "left",
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: card.bg,
-              border: `1px solid ${card.border}55`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.3rem",
-              fontFamily: FONT_EMOJI,
-            }}
-          >
-            {card.emoji}
-          </div>
-          <div style={{ textAlign: rtl ? "right" : "left" }}>
-            <div
-              style={{
-                fontSize: "0.64rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                color: card.color,
-                fontFamily: FONT_BODY,
-                fontWeight: 700,
-              }}
-            >
-              {card.tag}
-            </div>
-            <div style={{ fontFamily: FONT_BODY, fontWeight: 700, fontSize: "0.95rem", color: G.ink }}>
-              {card.who}
+    <div className="grid gap-4 md:grid-cols-3">
+      {cards.map(({ Icon, tag, who, head, text, red }, i) => (
+        <Reveal key={who} delay={i * 0.06} className="lg-card relative overflow-hidden p-6">
+          <div className="flex items-center gap-3">
+            <span className={`grid h-12 w-12 place-items-center rounded-2xl ${red ? 'bg-[#FEF2F2] text-[#DC2626]' : 'bg-[#F5F5F7] text-[#1D1D1F]'}`}><Icon className="h-6 w-6" /></span>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#DC2626]">{tag}</p>
+              <p className="text-base font-semibold text-[#1D1D1F]">{who}</p>
             </div>
           </div>
-        </div>
-        <h3
-          style={{
-            fontFamily: FONT_HEAD,
-            fontWeight: 700,
-            fontSize: "1.1rem",
-            color: card.color,
-            marginBottom: "0.6rem",
-            lineHeight: 1.3,
-          }}
-        >
-          {card.headline}
-        </h3>
-        <p style={{ fontFamily: FONT_BODY, fontSize: "0.84rem", color: G.muted, lineHeight: 1.7, textAlign: rtl ? "right" : "left" }}>
-          {card.detail}
-        </p>
-      </div>
-    </FadeIn>
-  );
-}
-
-function OutcomeCards({ cards = [], rtl = false }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.2rem" }}>
-      {cards.map((c, i) => (
-        <OutcomeCard key={c.tag} card={c} delay={i * 0.1} rtl={rtl} />
+          <p className={`mt-5 text-xl font-bold ${red ? 'text-[#DC2626]' : 'text-[#1D1D1F]'}`}>{head}</p>
+          <p className="mt-2 text-sm leading-relaxed text-[#6E6E73]">{text}</p>
+        </Reveal>
       ))}
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-//  REVENUE FLOW DIAGRAM
-// ─────────────────────────────────────────────
-function FlowDiagram({ rows = [], rtl = false }) {
-  const [ref, visible] = useInView(0.1);
-
+function WhoEarns() {
+  const rows = [
+    { id: 'A', title: 'Partner A · chain origin', text: 'Introduced A1. Receives a chain bonus.', tag: 'Upline' },
+    { id: 'A1', title: 'Partner A1 · direct introducer', text: 'Introduced A1.1. Receives the larger chain bonus.', tag: 'Upline' },
+    { id: 'A1.1', title: 'Partner A1.1 · project bringer', text: 'Brought the client project. Receives the main referral amount.', tag: 'Earner', red: true },
+    { id: 'C', title: 'Client · project processed', text: 'The project is confirmed. This triggers every payout.', tag: 'Trigger' },
+  ];
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <div
-        style={{
-          position: "absolute",
-          left: rtl ? "auto" : 28,
-          right: rtl ? 28 : "auto",
-          top: 24,
-          bottom: 24,
-          width: 2,
-          background: `linear-gradient(180deg, ${G.goldMid}55, ${G.blueBorder}55, ${G.greenBorder}55, ${G.purpleBorder}55)`,
-          opacity: visible ? 1 : 0,
-          transition: "opacity 0.8s 0.4s",
-        }}
-      />
-
-      {rows.map((r, i) => (
-        <div
-          key={i}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-            padding: rtl ? "1rem 1rem 1rem 1.2rem" : "1rem 1.2rem 1rem 1rem",
-            borderRadius: 12,
-            background: r.bg,
-            border: `1px solid ${r.border}44`,
-            marginBottom: "0.75rem",
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateX(0)" : `translateX(${rtl ? "20px" : "-20px"})`,
-            transition: `opacity 0.6s ${r.delay}s, transform 0.6s ${r.delay}s`,
-            flexDirection: rtl ? "row-reverse" : "row",
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: G.white,
-              border: `2px solid ${r.border}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: r.isClient ? FONT_EMOJI : FONT_HEAD,
-              fontWeight: 700,
-              fontSize: r.isClient ? "1.2rem" : "1rem",
-              color: r.color,
-              flexShrink: 0,
-            }}
-          >
-            {r.letter}
+    <ol className="relative space-y-3">
+      <span className="absolute bottom-6 left-[34px] top-6 w-px bg-[#E3E3E8]" aria-hidden="true" />
+      {rows.map((r) => (
+        <li key={r.id} style={{ borderRadius: '22px 6px 22px 6px' }} className={`relative flex items-center gap-4 border p-4 ${r.red ? 'border-[#DC2626]/40 bg-[#FEF2F2]' : 'border-[#E3E3E8] bg-white'}`}>
+          <span className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-xl border-2 bg-white text-sm font-bold ${r.red ? 'border-[#DC2626] text-[#DC2626]' : 'border-[#1D1D1F] text-[#1D1D1F]'}`}>{r.id}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#1D1D1F]">{r.title}</p>
+            <p className="text-xs text-[#6E6E73]">{r.text}</p>
           </div>
-          <div style={{ flex: 1, textAlign: rtl ? "right" : "left" }}>
-            <div style={{ fontFamily: FONT_BODY, fontWeight: 700, fontSize: "0.87rem", color: G.ink }}>{r.label}</div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: "0.77rem", color: G.muted, marginTop: 2, lineHeight: 1.5 }}>{r.sub}</div>
-          </div>
-          <div
-            style={{
-              fontSize: "0.65rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              fontFamily: FONT_BODY,
-              fontWeight: 700,
-              color: r.color,
-              background: G.white,
-              padding: "3px 9px",
-              borderRadius: 20,
-              border: `1px solid ${r.border}`,
-              flexShrink: 0,
-            }}
-          >
-            {r.tag}
-          </div>
-        </div>
+          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${r.red ? 'border-[#DC2626] text-[#DC2626]' : 'border-[#1D1D1F]/30 text-[#424245]'}`}>{r.tag}</span>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
-// ─────────────────────────────────────────────
-//  COMPENSATION VISUAL
-// ─────────────────────────────────────────────
-function CompensationVisual({ data, rtl = false }) {
-  const [ref, visible] = useInView(0.1);
-  const legendItems = Array.isArray(data?.legend) ? data.legend : [];
-  const bulletItems = Array.isArray(data?.bullets) ? data.bullets : [];
-  const legendColors = [G.green, G.goldMid];
+function Calculator({ maxPct, pool, mode }) {
+  const [value, setValue] = useState(100000);
+  const [levels, setLevels] = useState(2);
+  const direct = (value * maxPct) / 100;
+  const shares = useMemo(() => chainShares(value, pool, levels, mode), [value, pool, levels, mode]);
+  const chainTotal = shares.reduce((a, b) => a + b, 0);
+  const total = direct + chainTotal || 1;
 
   return (
-    <div ref={ref}>
-      <div
-        style={{
-          opacity: visible ? 1 : 0,
-          transform: visible ? "translateY(0)" : "translateY(20px)",
-          transition: "all 0.7s 0.1s",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: FONT_BODY,
-            fontWeight: 600,
-            fontSize: "0.75rem",
-            color: G.muted,
-            marginBottom: 10,
-            textTransform: "uppercase",
-            letterSpacing: "0.1em",
-            textAlign: rtl ? "right" : "left",
-          }}
-        >
-          {data?.allocationTitle}
-        </div>
-        <div
-          style={{
-            height: 52,
-            borderRadius: 12,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: rtl ? "row-reverse" : "row",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          }}
-        >
-          <div
-            style={{
-              width: visible ? "60%" : "0%",
-              background: `linear-gradient(90deg, ${G.green}, #2ECC71)`,
-              display: "flex",
-              alignItems: "center",
-              paddingLeft: rtl ? 0 : 16,
-              paddingRight: rtl ? 16 : 0,
-              fontFamily: FONT_BODY,
-              fontWeight: 700,
-              fontSize: "0.88rem",
-              color: "white",
-              transition: "width 1.3s cubic-bezier(0.23,1,0.32,1) 0.3s",
-              whiteSpace: "nowrap",
-              textAlign: rtl ? "right" : "left",
-            }}
-          >
-            {data?.barMain}
-          </div>
-          <div
-            style={{
-              width: visible ? "40%" : "0%",
-              background: `linear-gradient(90deg, ${G.goldMid}, ${G.goldLight})`,
-              transition: "width 1.3s cubic-bezier(0.23,1,0.32,1) 0.3s",
-            }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "1.5rem", marginTop: 10, flexDirection: rtl ? "row-reverse" : "row" }}>
-          {legendItems.map((item, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, flexDirection: rtl ? "row-reverse" : "row" }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: legendColors[i] || G.muted }} />
-              <div style={{ fontFamily: FONT_BODY, fontSize: "0.78rem", color: G.muted, textAlign: rtl ? "right" : "left" }}>{item}</div>
-            </div>
-          ))}
-        </div>
+    <div className="lg-card p-6">
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6E6E73]">Try it: how the amount moves</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-[#424245]">Project value
+          <input type="number" min="0" step="1000" value={value} onChange={(e) => setValue(Math.max(0, Number(e.target.value) || 0))}
+            className="mt-1 w-full rounded-xl border border-[#E3E3E8] px-3 py-2 text-sm text-[#1D1D1F] outline-none focus:border-[#1D1D1F]" />
+        </label>
+        <label className="text-xs font-semibold text-[#424245]">Partners above the bringer: {levels}
+          <input type="range" min="0" max="8" value={levels} onChange={(e) => setLevels(Number(e.target.value))} className="mt-3 w-full accent-[#DC2626]" />
+        </label>
       </div>
 
-      <div style={{ opacity: visible ? 1 : 0, transition: "opacity 0.7s 0.4s" }}>
-        {bulletItems.map((item, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: "0.75rem 1rem",
-              borderRadius: 9,
-              background: G.greenBg,
-              border: `1px solid ${G.greenBorder}44`,
-              marginBottom: "0.6rem",
-              fontFamily: FONT_BODY,
-              fontSize: "0.83rem",
-              color: G.inkMid,
-              lineHeight: 1.55,
-              flexDirection: rtl ? "row-reverse" : "row",
-              textAlign: rtl ? "right" : "left",
-            }}
-          >
-            <span style={{ color: G.green, flexShrink: 0, fontFamily: FONT_EMOJI }}>✅</span> {item}
-          </div>
+      <div className="mt-5 flex h-12 overflow-hidden rounded-2xl" role="img" aria-label="Split between project bringer and chain">
+        <div className="flex items-center bg-[#DC2626] px-3 text-xs font-bold text-white transition-all" style={{ width: `${(direct / total) * 100}%` }}>Bringer {maxPct}%</div>
+        <div className="flex flex-1 items-center justify-end bg-[#1D1D1F] px-3 text-xs font-bold text-white">{levels ? `Chain ${pool}%` : ''}</div>
+      </div>
+
+      <ul className="mt-4 space-y-2 text-sm">
+        <li className="flex items-center justify-between rounded-xl bg-[#FEF2F2] px-3 py-2"><span className="font-semibold text-[#DC2626]">Project bringer ({maxPct}%)</span><span className="font-bold text-[#1D1D1F]">{fmt(direct)}</span></li>
+        {shares.map((amt, i) => (
+          <li key={i} className="flex items-center justify-between rounded-xl bg-[#F5F5F7] px-3 py-2">
+            <span className="text-[#424245]">{i === 0 ? 'Direct introducer' : `Level ${i + 1} above`}</span>
+            <span className="font-semibold text-[#1D1D1F]">{fmt(amt)}</span>
+          </li>
         ))}
-      </div>
+      </ul>
+      <p className="mt-3 text-xs text-[#6E6E73]">Example only. BNC confirms the project value and final % for each project.</p>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-//  CORE PRINCIPLES
-// ─────────────────────────────────────────────
-// (Principles content is provided via translations in ReferralPage.)
-
-function PrincipleCard({ principle, delay, rtl = false }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <FadeIn delay={delay}>
-      <div
-        onMouseEnter={() => setHov(true)}
-        onMouseLeave={() => setHov(false)}
-        style={{
-          background: G.white,
-          border: `1px solid ${hov ? `${G.goldMid}55` : G.border}`,
-          borderRadius: 14,
-          padding: "1.5rem",
-          display: "flex",
-          gap: "1rem",
-          alignItems: "flex-start",
-          transform: hov ? "translateY(-3px)" : "translateY(0)",
-          boxShadow: hov ? `0 8px 28px ${G.goldMid}18` : "0 1px 6px rgba(0,0,0,0.04)",
-          transition: "all 0.23s",
-          cursor: "default",
-          flexDirection: rtl ? "row-reverse" : "row",
-        }}
-      >
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 11,
-            background: hov ? G.goldTint : G.cream,
-            border: `1px solid ${hov ? `${G.goldMid}44` : G.borderLight}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1.2rem",
-            flexShrink: 0,
-            transition: "all 0.23s",
-            fontFamily: FONT_EMOJI,
-          }}
-        >
-          {principle.icon}
-        </div>
-        <div style={{ textAlign: rtl ? "right" : "left" }}>
-          <h4 style={{ fontFamily: FONT_BODY, fontWeight: 700, fontSize: "0.92rem", color: G.ink, marginBottom: 5 }}>
-            {principle.title}
-          </h4>
-          <p style={{ fontFamily: FONT_BODY, fontSize: "0.82rem", color: G.muted, lineHeight: 1.65 }}>
-            {principle.desc}
-          </p>
-        </div>
-      </div>
-    </FadeIn>
-  );
-}
-
-// ─────────────────────────────────────────────
-//  MAIN EXPORT
-// ─────────────────────────────────────────────
-function ReferralVideoPopup() {
-  const [open, setOpen] = useState(false);
+export default function ReferralProgram() {
+  const [access, setAccess] = useState({ loading: true, user: null, partner: null });
+  const [settings, setSettings] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (!localStorage.getItem('referral_video_seen')) {
-      setOpen(true);
-      localStorage.setItem('referral_video_seen', '1');
-    }
+    let alive = true;
+    getReferralAccess()
+      .then(async (a) => {
+        if (!alive) return;
+        setAccess({ loading: false, ...a });
+        if (a.partner) setSettings(await getReferralSettings().catch(() => null));
+      })
+      .catch(() => alive && setAccess({ loading: false, user: null, partner: null }));
+    return () => { alive = false; };
   }, []);
 
-  if (!open) return null;
+  if (access.loading) {
+    return <div className="lg-section"><div className="lg-container"><p className="text-center text-sm text-[#6E6E73]">Loading…</p></div></div>;
+  }
+  if (!access.partner) return <Gate signedIn={!!access.user} />;
+
+  const maxPct = Number(settings?.max_direct_percent ?? 5);
+  const pool = Number(settings?.upline_pool_percent ?? 1);
+  const mode = settings?.upline_mode || 'decay';
+  // open the Referrals tab of the partner dashboard
+  const openDashboard = () => { try { localStorage.setItem('activeDashboardTab', 'referral-program'); } catch { /* ignore */ } };
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.65)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '1rem',
-      }}
-      onClick={() => setOpen(false)}
-    >
-      <div
-        style={{
-          background: '#fff', borderRadius: 18, overflow: 'hidden',
-          width: '100%', maxWidth: 780,
-          boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
-          position: 'relative',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '1rem 1.4rem',
-          borderBottom: `1px solid ${G.border}`,
-        }}>
-          <div>
-            <div style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: '1rem', color: G.ink }}>
-              How the Referral Program Works
-            </div>
-            <div style={{ fontFamily: FONT_BODY, fontSize: '0.78rem', color: G.muted, marginTop: 2 }}>
-              Watch this quick overview to get started
-            </div>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            style={{
-              background: G.borderLight, border: 'none', borderRadius: '50%',
-              width: 34, height: 34, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '1rem', color: G.muted, flexShrink: 0,
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Video */}
-        <div style={{ aspectRatio: '16/9', width: '100%' }}>
-          <iframe
-            width="100%" height="100%"
-            src="https://www.youtube.com/embed/UyFc5JkECRg?autoplay=1"
-            title="Referral Program Overview"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{ display: 'block' }}
-          />
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '0.9rem 1.4rem', textAlign: 'right', borderTop: `1px solid ${G.border}` }}>
-          <button
-            onClick={() => setOpen(false)}
-            style={{
-              background: `linear-gradient(135deg, ${G.gold}, ${G.goldLight})`,
-              color: '#fff', border: 'none', borderRadius: 8,
-              padding: '9px 26px', fontFamily: FONT_BODY, fontWeight: 700,
-              fontSize: '0.88rem', cursor: 'pointer',
-              boxShadow: `0 4px 16px ${G.goldMid}44`,
-            }}
-          >
-            Got it, let's explore →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function ReferralPage() {
-  const { t, i18n } = useTranslation();
-  const isRtl = i18n.language === "ar";
-  const hero = t("referralProgramPageSimple.hero", { returnObjects: true });
-  const chain = t("referralProgramPageSimple.chain", { returnObjects: true });
-  const outcomes = t("referralProgramPageSimple.outcomes", { returnObjects: true });
-  const flow = t("referralProgramPageSimple.flow", { returnObjects: true });
-  const compensation = t("referralProgramPageSimple.compensation", { returnObjects: true });
-  const principles = t("referralProgramPageSimple.principles", { returnObjects: true });
-  const cta = t("referralProgramPageSimple.cta", { returnObjects: true });
-
-  const statsItemsRaw = t("referralProgramPageSimple.stats", { returnObjects: true });
-  const statsItems = Array.isArray(statsItemsRaw) ? statsItemsRaw : [];
-
-  const outcomeStyles = [
-    { emoji: "🏆", color: G.green, bg: G.greenBg, border: G.greenBorder },
-    { emoji: "🤝", color: G.blue, bg: G.blueBg, border: G.blueBorder },
-    { emoji: "🌱", color: G.gold, bg: G.goldTint, border: G.goldMid },
-  ];
-  const outcomeCardsText = Array.isArray(outcomes?.cards) ? outcomes.cards : [];
-  const outcomeCards = outcomeStyles.map((style, idx) => ({ ...style, ...(outcomeCardsText[idx] || {}) }));
-
-  const flowStyles = [
-    { color: G.gold, bg: G.goldTint, border: G.goldMid, delay: 0.05 },
-    { color: G.blue, bg: G.blueBg, border: G.blueBorder, delay: 0.15 },
-    { color: G.green, bg: G.greenBg, border: G.greenBorder, delay: 0.25 },
-    { color: G.purple, bg: G.purpleBg, border: G.purpleBorder, delay: 0.35, isClient: true },
-  ];
-  const flowRowsText = Array.isArray(flow?.rows) ? flow.rows : [];
-  const flowRows = flowStyles.map((style, idx) => ({ ...style, ...(flowRowsText[idx] || {}) }));
-
-  const principleIcons = ["🆕", "💰", "✅", "🚫", "🛡️", "⚖️"];
-  const principleTexts = Array.isArray(principles?.items) ? principles.items : [];
-  const principleItems = principleIcons.map((icon, idx) => ({ icon, ...(principleTexts[idx] || {}) }));
-
-  const chainDiagram = t("referralProgramPageSimple.chainDiagram", { returnObjects: true });
-  const chainNodesText = Array.isArray(chainDiagram?.nodes) ? chainDiagram.nodes : [];
-  const chainStyles = [
-    { color: G.gold, bg: G.goldTint, border: G.goldMid },
-    { color: G.blue, bg: G.blueBg, border: G.blueBorder },
-    { color: G.green, bg: G.greenBg, border: G.greenBorder },
-    { color: G.client, bg: G.clientBg, border: G.clientBorder, isClient: true },
-  ];
-  const chainNodes = chainStyles.map((style, idx) => {
-    const node = { ...style, ...(chainNodesText[idx] || {}) };
-    if (node.isClient) {
-      node.letter = "💼";
-    }
-    return node;
-  });
-  const chainConnectors = Array.isArray(chainDiagram?.connectors) ? chainDiagram.connectors : [];
-
-  return (
-    <div
-      style={{
-        background: G.cream,
-        color: G.ink,
-        ["--font-head"]: isRtl
-          ? "'Tajawal', 'Noto Sans Arabic', 'Noto Naskh Arabic', 'Tahoma', 'Segoe UI', sans-serif"
-          : "'Poppins', 'Sora', 'Segoe UI', sans-serif",
-        ["--font-body"]: isRtl
-          ? "'Tajawal', 'Noto Sans Arabic', 'Noto Naskh Arabic', 'Tahoma', 'Segoe UI', sans-serif"
-          : "'Geist', 'Poppins', 'Segoe UI', sans-serif",
-      }}
-      dir={isRtl ? "rtl" : "ltr"}
-    >
+    <div className="lg-home">
       <ReferralVideoDrawer />
-      <ReferralVideoPopup />
-      <style>{`
-        @keyframes heroUp { from { opacity:0;transform:translateY(28px); } to { opacity:1;transform:translateY(0); } }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes ripple { 0%{transform:scale(1);opacity:0.55} 100%{transform:scale(1.55);opacity:0} }
 
-      `}</style>
-
-      <section
-        style={{
-          height: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          textAlign: "center",
-          padding: "4.5rem 1.5rem 3.5rem",
-          background: `linear-gradient(150deg, ${G.white} 0%, ${G.goldBg} 35%, ${G.cream} 60%, #EEF2FF 100%)`,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {[{ w: 520, t: "-15%", l: "-8%", c: `${G.goldMid}0C` }, { w: 400, t: "5%", r: "-10%", c: `${G.blueBorder}0C` }, { w: 280, b: "0", l: "30%", c: `${G.greenBorder}0A` }].map((b, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: b.w,
-              height: b.w,
-              borderRadius: "50%",
-              background: b.c,
-              top: b.t || "auto",
-              left: b.l || "auto",
-              right: b.r || "auto",
-              bottom: b.b || "auto",
-              pointerEvents: "none",
-            }}
+      {/* hero */}
+      <section className="lg-section !pb-10">
+        <div className="lg-container">
+          <SectionHeading
+            eyebrow="Referral program"
+            title="Bring a project."
+            muted={`Earn up to ${maxPct}%.`}
+            lead="Refer clients who take a project or service from us and earn on every project we process, plus a bonus from your partner chain."
           />
-        ))}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            backgroundImage: `radial-gradient(${G.goldMid}1E 1.5px, transparent 1.5px)`,
-            backgroundSize: "34px 34px",
-            maskImage: "radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)",
-            WebkitMaskImage: "radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)",
-          }}
-        />
-
-        <div
-          style={{
-            animation: "heroUp 0.75s ease both",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: G.white,
-            border: `1.5px solid ${G.goldMid}55`,
-            padding: "7px 20px",
-            borderRadius: 100,
-            fontFamily: FONT_BODY,
-            fontWeight: 600,
-            fontSize: "0.72rem",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: G.gold,
-            marginBottom: "1.2rem",
-            boxShadow: `0 2px 16px ${G.goldMid}22`,
-          }}
-        >
-          <span style={{ fontSize: "0.5rem" }}>◆</span> {hero.badge}
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <button type="button" onClick={() => setFormOpen(true)} className="lg-pbtn lg-pbtn-dark inline-flex items-center gap-2 !px-6 !py-3 text-sm"><Send size={16} /> Refer a client</button>
+            <Link to="/dashboard" onClick={openDashboard} className="lg-pbtn lg-pbtn-light inline-flex items-center gap-2 !px-6 !py-3 text-sm"><LayoutDashboard size={16} /> My referrals</Link>
+          </div>
+          {sent && <p className="mt-4 text-center text-sm text-emerald-700">Referral submitted. Track its status in Dashboard › Referrals.</p>}
         </div>
-
-        <h1
-          style={{
-            animation: "heroUp 0.75s 0.1s ease both",
-            fontFamily: FONT_HEAD,
-            fontWeight: 900,
-            fontSize: "clamp(2.2rem,6vw,4.6rem)",
-            color: G.ink,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-            maxWidth: 860,
-            marginBottom: "1rem",
-          }}
-        >
-          {hero.titlePrefix}{" "}
-          <em
-            style={{
-              fontStyle: "normal",
-              background: `linear-gradient(135deg, ${G.gold} 0%, ${G.goldLight} 50%, #A9C7FF 100%)`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            {hero.titleHighlight}
-          </em>{" "}
-          {hero.titleSuffix}
-        </h1>
-
-        <p
-          style={{
-            animation: "heroUp 0.75s 0.2s ease both",
-            fontFamily: FONT_BODY,
-            fontWeight: 300,
-            fontSize: "clamp(0.98rem,1.6vw,1.12rem)",
-            color: G.muted,
-            maxWidth: 520,
-            lineHeight: 1.7,
-            marginBottom: "2rem",
-          }}
-        >
-          {hero.subtitle}
-        </p>
-
-        <div style={{ animation: "heroUp 0.75s 0.3s ease both", display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <a
-            href="#chain"
-            style={{
-              background: `linear-gradient(135deg, ${G.gold}, ${G.goldLight})`,
-              color: G.white,
-              padding: "14px 34px",
-              borderRadius: 10,
-              fontFamily: FONT_BODY,
-              fontWeight: 700,
-              fontSize: "0.92rem",
-              textDecoration: "none",
-              boxShadow: `0 6px 28px ${G.goldMid}44`,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = `0 10px 36px ${G.goldMid}55`;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = `0 6px 28px ${G.goldMid}44`;
-            }}
-          >
-            {hero.primaryCta}
-          </a>
-          <Link
-            to="/partner-form"
-            style={{
-              background: G.white,
-              color: G.inkMid,
-              padding: "14px 34px",
-              borderRadius: 10,
-              fontFamily: FONT_BODY,
-              fontWeight: 600,
-              fontSize: "0.92rem",
-              textDecoration: "none",
-              border: `1.5px solid ${G.border}`,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = G.goldMid)}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = G.border)}
-          >
-            {hero.secondaryCta}
-          </Link>
-        </div>
-
-        <div style={{ animation: "float 2.4s ease-in-out infinite", marginTop: "2rem", color: G.goldMid, fontSize: "1.35rem" }}>↓</div>
       </section>
 
-      <div style={{ background: G.white, borderTop: `1px solid ${G.border}`, borderBottom: `1px solid ${G.border}` }}>
-        <div
-          style={{
-            maxWidth: 1080,
-            margin: "0 auto",
-            padding: "2.2rem 1.5rem",
-            display: "flex",
-            justifyContent: "space-around",
-            flexWrap: "wrap",
-            gap: "1.5rem",
-          }}
-        >
-          {statsItems.map((item, i) => (
-            <div key={`${item.label}-${item.value}-${i}`} style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: FONT_HEAD, fontWeight: 700, fontSize: "1.9rem", color: G.gold, lineHeight: 1 }}>{item.value}</div>
-              <div style={{ fontFamily: FONT_BODY, fontSize: "0.72rem", color: G.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 5 }}>
-                {item.label}
-              </div>
-            </div>
-          ))}
+      {/* rules */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {RULES.map(({ Icon, title, text }, i) => (
+              <Reveal key={title} delay={i * 0.05} className="lg-card p-6">
+                <Icon className="h-6 w-6 text-[#DC2626]" />
+                <h3 className="mt-4 text-base font-semibold text-[#1D1D1F]">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#6E6E73]">{text}</p>
+              </Reveal>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
 
-      <Sec id="chain" bg={G.white} rtl={isRtl}>
-        <FadeIn>
-          <Label rtl={isRtl}>{chain.label}</Label>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, fontSize: "clamp(1.7rem,3.5vw,2.8rem)", color: G.ink, marginBottom: "0.8rem" }}>
-            {chain.heading}
-          </h2>
-          <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "1rem", maxWidth: 600, marginBottom: "3rem", lineHeight: 1.78 }}>
-            {chain.description}
-          </p>
-        </FadeIn>
-
-        <FadeIn delay={0.12}>
-          <ReferralChain nodes={chainNodes} connectors={chainConnectors} rtl={isRtl} />
-        </FadeIn>
-
-        <FadeIn delay={0.2}>
-          <div
-            style={{
-              marginTop: "1.8rem",
-              background: G.white,
-              border: `1.5px solid ${G.goldMid}44`,
-              borderLeft: isRtl ? "none" : `4px solid ${G.goldMid}`,
-              borderRight: isRtl ? `4px solid ${G.goldMid}` : "none",
-              borderRadius: isRtl ? "14px 0 0 14px" : "0 14px 14px 0",
-              padding: "1.4rem 1.8rem",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "1.1rem",
-              flexDirection: isRtl ? "row-reverse" : "row",
-            }}
-          >
-            <span style={{ fontSize: "1.5rem", lineHeight: 1, fontFamily: FONT_EMOJI }}>💡</span>
+      {/* animated model */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <SectionHeading eyebrow="The referral model in action" title="Partners invite partners." muted="Rewards flow up." lead="Introductions build your chain. A client project is what pays, and when it does, the reward moves up through every level." />
+          <div className="lg-card mt-12 px-4 py-10 sm:px-8">
+            <ReferralChainFlow maxPct={maxPct} pool={pool} />
+          </div>
+          <div className="lg-card mt-6 flex gap-4 border-l-4 border-[#DC2626] p-6">
+            <span className="text-2xl" aria-hidden="true">💡</span>
             <div>
-              <div style={{ fontFamily: FONT_BODY, fontWeight: 700, color: G.ink, marginBottom: 4, textAlign: isRtl ? "right" : "left" }}>{chain.inShortLabel}</div>
-              <p style={{ fontFamily: FONT_BODY, fontSize: "0.88rem", color: G.muted, lineHeight: 1.72 }}>
-                {chain.inShortText} <strong style={{ color: G.ink }}>{chain.inShortStrong}</strong>
-              </p>
+              <p className="font-semibold text-[#1D1D1F]">In short</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#424245]">Each partner can introduce the next. Introductions alone earn nothing. When a project closes, <strong>the project bringer earns up to {maxPct}%</strong>, and <strong>everyone above them shares a {pool}% chain bonus</strong>.</p>
             </div>
           </div>
-        </FadeIn>
-      </Sec>
-
-      <Sec id="outcomes" bg={G.cream} rtl={isRtl}>
-        <FadeIn>
-          <Label rtl={isRtl}>{outcomes.label}</Label>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, fontSize: "clamp(1.7rem,3.5vw,2.8rem)", color: G.ink, marginBottom: "0.8rem" }}>
-            {outcomes.heading}
-          </h2>
-          <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "1rem", maxWidth: 560, marginBottom: "2.5rem", lineHeight: 1.78 }}>
-            {outcomes.description}
-          </p>
-        </FadeIn>
-        <OutcomeCards cards={outcomeCards} rtl={isRtl} />
-      </Sec>
-
-      <Sec id="source" bg={G.white} rtl={isRtl}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: "4rem", alignItems: "start" }}>
-          <FadeIn>
-            <Label rtl={isRtl}>{flow.label}</Label>
-            <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, fontSize: "clamp(1.6rem,3vw,2.3rem)", color: G.ink, marginBottom: "0.8rem" }}>
-              {flow.heading}
-            </h2>
-            <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "0.95rem", marginBottom: "2rem", lineHeight: 1.75 }}>
-              {flow.description}
-            </p>
-            <FlowDiagram rows={flowRows} rtl={isRtl} />
-          </FadeIn>
-
-          <FadeIn delay={0.15}>
-            <Label rtl={isRtl}>{compensation.label}</Label>
-            <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, fontSize: "clamp(1.6rem,3vw,2.3rem)", color: G.ink, marginBottom: "0.8rem" }}>
-              {compensation.heading}
-            </h2>
-            <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "0.95rem", marginBottom: "2rem", lineHeight: 1.75 }}>
-              {compensation.description}
-            </p>
-            <CompensationVisual data={compensation} rtl={isRtl} />
-          </FadeIn>
-        </div>
-      </Sec>
-
-      <Sec id="principles" bg={G.cream} rtl={isRtl}>
-        <FadeIn>
-          <Label rtl={isRtl}>{principles.label}</Label>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 800, fontSize: "clamp(1.7rem,3.5vw,2.8rem)", color: G.ink, marginBottom: "0.8rem" }}>
-            {principles.heading}
-          </h2>
-          <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "1rem", maxWidth: 540, marginBottom: "2.5rem", lineHeight: 1.78 }}>
-            {principles.description}
-          </p>
-        </FadeIn>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "1rem" }}>
-          {principleItems.map((p, i) => (
-            <PrincipleCard key={p.title} principle={p} delay={i * 0.07} rtl={isRtl} />
-          ))}
-        </div>
-
-        <FadeIn delay={0.18}>
-          <div
-            style={{
-              marginTop: "2rem",
-              background: `linear-gradient(135deg, ${G.goldBg}, ${G.white})`,
-              border: `1.5px solid ${G.goldMid}44`,
-              borderRadius: 16,
-              padding: "1.6rem 2rem",
-              display: "flex",
-              gap: "1.2rem",
-              alignItems: "flex-start",
-              flexDirection: isRtl ? "row-reverse" : "row",
-            }}
-          >
-            <div
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: 12,
-                background: G.goldTint,
-                border: `1.5px solid ${G.goldMid}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1.3rem",
-                flexShrink: 0,
-                fontFamily: FONT_EMOJI,
-              }}
-            >
-              ⚖️
-            </div>
-            <div style={{ textAlign: isRtl ? "right" : "left" }}>
-              <div style={{ fontFamily: FONT_BODY, fontWeight: 700, color: G.ink, marginBottom: 5, fontSize: "0.95rem" }}>
-                {principles.footerTitle}
-              </div>
-              <p style={{ fontFamily: FONT_BODY, fontSize: "0.85rem", color: G.muted, lineHeight: 1.72 }}>
-                {principles.footerText}
-              </p>
-            </div>
-          </div>
-        </FadeIn>
-      </Sec>
-
-      <section
-        id="join"
-        style={{
-          background: `linear-gradient(150deg, ${G.white} 0%, ${G.goldBg} 40%, #EEF2FF 100%)`,
-          padding: "7rem 1.5rem",
-          textAlign: "center",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            width: 700,
-            height: 700,
-            borderRadius: "50%",
-            background: `${G.goldMid}06`,
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            pointerEvents: "none",
-          }}
-        />
-        <div style={{ maxWidth: 640, margin: "0 auto", position: "relative" }}>
-          <FadeIn>
-            <Label rtl={isRtl}>{cta.label}</Label>
-            <h2
-              style={{
-                fontFamily: FONT_HEAD,
-                fontWeight: 900,
-                fontSize: "clamp(2rem,4.5vw,3.5rem)",
-                color: G.ink,
-                lineHeight: 1.1,
-                marginBottom: "1rem",
-              }}
-            >
-              {cta.titleLine1}{" "}
-              <span
-                style={{
-                  background: `linear-gradient(135deg, ${G.gold}, ${G.goldLight})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                {cta.titleLine2}
-              </span>
-            </h2>
-            <p style={{ fontFamily: FONT_BODY, color: G.muted, fontSize: "1.02rem", marginBottom: "2.5rem", lineHeight: 1.78 }}>
-              {cta.subtitle}
-            </p>
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-              <a
-                href="#"
-                style={{
-                  background: `linear-gradient(135deg, ${G.gold}, ${G.goldLight})`,
-                  color: G.white,
-                  padding: "15px 38px",
-                  borderRadius: 10,
-                  fontFamily: FONT_BODY,
-                  fontWeight: 700,
-                  fontSize: "0.95rem",
-                  textDecoration: "none",
-                  boxShadow: `0 6px 28px ${G.goldMid}44`,
-                }}
-              >
-                {cta.primaryCta}
-              </a>
-              <a
-                href="#"
-                style={{
-                  background: G.white,
-                  color: G.inkMid,
-                  padding: "15px 38px",
-                  borderRadius: 10,
-                  fontFamily: FONT_BODY,
-                  fontWeight: 600,
-                  fontSize: "0.95rem",
-                  textDecoration: "none",
-                  border: `1.5px solid ${G.border}`,
-                }}
-              >
-                {cta.secondaryCta}
-              </a>
-            </div>
-          </FadeIn>
         </div>
       </section>
+
+      {/* what happens when a project closes */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <SectionHeading eyebrow="What happens when a project closes" title="Referral amounts" muted="move up the chain." />
+          <div className="mt-10"><EarnCards maxPct={maxPct} pool={pool} /></div>
+        </div>
+      </section>
+
+      {/* who earns + distribution */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container grid gap-10 lg:grid-cols-2">
+          <div>
+            <p className="lg-eyebrow is-red">Referral flow</p>
+            <h2 className="lg-h2 mt-3">Who earns when a project closes</h2>
+            <p className="mt-3 text-sm text-[#6E6E73]">The processed project triggers a referral amount that moves up through the partner chain.</p>
+            <div className="mt-6"><WhoEarns /></div>
+          </div>
+          <div>
+            <p className="lg-eyebrow is-red">Referral distribution</p>
+            <h2 className="lg-h2 mt-3">Main amount to the bringer, a bonus to the chain</h2>
+            <p className="mt-3 text-sm text-[#6E6E73]">The chain pool is shared across all levels above the project bringer.</p>
+            <div className="mt-6"><Calculator maxPct={maxPct} pool={pool} mode={mode} /></div>
+          </div>
+        </div>
+      </section>
+
+      {/* core rules */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <SectionHeading eyebrow="Core rules" title="Simple, transparent" muted="and partner-driven." />
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {PRINCIPLES.map(([title, text]) => (
+              <div key={title} className="lg-card flex gap-3 p-5">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" />
+                <div>
+                  <p className="text-sm font-semibold text-[#1D1D1F]">{title}</p>
+                  <p className="mt-1 text-sm text-[#6E6E73]">{text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* benefits */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <SectionHeading eyebrow="Why partner with BNC" title="Benefits of becoming" muted="a partner." />
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {BENEFITS.map(({ Icon, title, text }, i) => (
+              <Reveal key={title} delay={i * 0.04} className="lg-card p-6">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#F5F5F7]"><Icon className="h-5 w-5 text-[#1D1D1F]" /></span>
+                <h3 className="mt-4 text-base font-semibold text-[#1D1D1F]">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#6E6E73]">{text}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* global network and funding */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <div className="overflow-hidden bg-[#1D1D1F] p-6 text-white sm:p-10" style={{ borderRadius: '44px 12px 44px 12px' }}>
+            <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#F87171]">Global network &amp; funding</p>
+                <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">One league, working across borders.</h2>
+                <p className="mt-3 max-w-xl text-sm text-white/70">Your referrals are served by partners on the ground in 42 countries, so a client anywhere can be taken care of locally.</p>
+                <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {GLOBAL_STATS.map((s) => (
+                    <div key={s.label} className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+                      <p className="text-2xl font-bold">{s.value}</p>
+                      <p className="mt-1 text-xs text-white/60">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-3">
+                {[
+                  { Icon: MapPin, title: 'Local delivery, global reach', text: 'Projects you refer are handled by league partners in the client’s own market.' },
+                  { Icon: Landmark, title: 'Funding and finance support', text: 'Clients can access financial services and funding guidance through the league’s finance specialists.' },
+                  { Icon: Users, title: 'Cross-border teams', text: 'Bigger mandates are staffed with specialists from several countries, working as one team.' },
+                ].map(({ Icon, title, text }) => (
+                  <div key={title} className="flex gap-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#DC2626]"><Icon className="h-5 w-5" /></span>
+                    <div>
+                      <p className="text-sm font-semibold">{title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/65">{text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* bottom actions */}
+      <section className="lg-section !pt-0">
+        <div className="lg-container">
+          <div className="lg-card px-6 py-10 text-center sm:px-12 sm:py-14">
+            <p className="lg-eyebrow is-red">Ready to refer?</p>
+            <h2 className="lg-h2 mt-3">Bring a project. <span className="lg-muted-line">Earn across levels.</span></h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm text-[#6E6E73]">Your details are already filled in. Add the client&rsquo;s name and we&rsquo;ll take it from there.</p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={() => setFormOpen(true)} className="lg-pbtn lg-pbtn-dark inline-flex items-center gap-2 !px-6 !py-3 text-sm"><Send size={16} /> I want to register as a referral partner</button>
+              <button type="button" onClick={() => setContactOpen(true)} className="lg-pbtn lg-pbtn-light inline-flex items-center gap-2 !px-6 !py-3 text-sm"><MessageCircle size={16} /> Contact our team</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {formOpen && (
+        <ReferralFormModal
+          partner={access.partner}
+          onClose={() => setFormOpen(false)}
+          onSubmitted={() => { setFormOpen(false); setSent(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        />
+      )}
+      {contactOpen && <ContactTeamModal partner={access.partner} onClose={() => setContactOpen(false)} />}
     </div>
   );
 }

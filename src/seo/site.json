@@ -28,12 +28,6 @@
       "type": "page"
     },
     {
-      "path": "/services/global",
-      "title": "Global Consulting Services",
-      "description": "Global Consulting Services through the BNC Global partner network. Explore the platform and contact the team about your requirements.",
-      "type": "page"
-    },
-    {
       "path": "/partnerships/international",
       "title": "International Partnerships",
       "description": "International Partnerships through the BNC Global partner network. Explore the platform and contact the team about your requirements.",
@@ -59,9 +53,10 @@
     },
     {
       "path": "/referral-program",
-      "title": "Partner Referral Program",
-      "description": "Partner Referral Program through the BNC Global partner network. Explore the platform and contact the team about your requirements.",
-      "type": "page"
+      "title": "Become a partner with BNC Global Consultech",
+      "description": "Join the BNC Global Partner League across 42 countries. Refer clients and projects and earn up to 5%.",
+      "type": "page",
+      "image": "/og/partner-program.jpg"
     },
     {
       "path": "/privacy-policy",
@@ -396,12 +391,6 @@
     {
       "path": "/ar/services/saudi-arabia",
       "title": "الخدمات الاستشارية في المملكة العربية السعودية",
-      "description": "استكشف خدمات وشراكات بي إن سي جلوبال وتواصل مع الفريق لمناقشة متطلباتك.",
-      "type": "page"
-    },
-    {
-      "path": "/ar/services/global",
-      "title": "الخدمات الاستشارية العالمية",
       "description": "استكشف خدمات وشراكات بي إن سي جلوبال وتواصل مع الفريق لمناقشة متطلباتك.",
       "type": "page"
     },
@@ -808,7 +797,9 @@
     "/ar/services/physical-verification-stock-fixed-asset": "/ar/services/global/physical-verification-stock-fixed-asset",
     "/ar/services/other/physical-verification-stock-fixed-asset": "/ar/services/global/physical-verification-stock-fixed-asset",
     "/ar/privacy-policy": "/privacy-policy",
-    "/ar/terms-of-service": "/terms-of-service"
+    "/ar/terms-of-service": "/terms-of-service",
+    "/services/global": "/services",
+    "/ar/services/global": "/ar/services"
   },
   "privateRoutes": [
     "/login",

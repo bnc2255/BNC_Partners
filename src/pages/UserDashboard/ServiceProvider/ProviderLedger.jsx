@@ -2,10 +2,10 @@ import React from 'react';
 
 const ProviderLedger = ({ providerTransactions }) => {
   return (
-    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm animate-fade-in">
       
       <div className="flex items-center space-x-3 mb-6">
-        <div className="w-1.5 h-7 bg-[#E52E38] rounded-full"></div>
+        <div className="w-1.5 h-7 bg-[#DC2626] rounded-full"></div>
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Payout & Transaction Ledger</h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">Complete record of payouts earned on consultancy mandates.</p>

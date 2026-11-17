@@ -1,50 +1,46 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  LayoutDashboard,
-  Store,
-  Wallet,
   Calendar as CalendarIcon,
-  User,
+  CalendarDays,
+  FileText,
+  Gift,
+  LayoutDashboard,
   LogOut,
-  Sun,
-  Moon,
   Menu,
-  X,
-  Search,
-  Mic,
+  Moon,
+  Sun,
+  User,
   UserCheck,
-  Settings,
-  FileText
+  UserRound,
+  Wallet,
+  X
 } from 'lucide-react';
 import Header from '../../Component/Header';
 import Footer from '../../Component/Footer';
+import DashboardReferrals from '../../Component/referrals/DashboardReferrals';
 import AIProfileModal from '../../Component/AIProfileModal';
-import TermsAgreementModal from '../../Component/TermsAgreementModal';
+import PartnerAgreementModal from '../../Component/agreement/PartnerAgreementModal';
 import RequirementVoiceModal from '../../Component/RequirementVoiceModal';
 import {
   fetchPartnerData,
   getSessionUser,
   logout,
-  submitPartnerAgreement,
   updatePartnerLoginRole
 } from '../../lib/supabaseData';
 
 // Service Provider Sub-Components
 import ProviderOverview from './ServiceProvider/ProviderOverview';
-import ProviderServices from './ServiceProvider/ProviderServices';
 import ProviderLedger from './ServiceProvider/ProviderLedger';
 import ProviderCalendar from './ServiceProvider/ProviderCalendar';
 import ProviderProfile from './ServiceProvider/ProviderProfile';
 
 // Service Consumer Sub-Components
 import ConsumerOverview from './ServiceConsumer/ConsumerOverview';
-import ConsumerDirectory from './ServiceConsumer/ConsumerDirectory';
-import ConsumerAiAssistant from './ServiceConsumer/ConsumerAiAssistant';
 import ConsumerBookings from './ServiceConsumer/ConsumerBookings';
 import ConsumerInvoices from './ServiceConsumer/ConsumerInvoices';
-import ConsumerSettings from './ServiceConsumer/ConsumerSettings';
 
 // --- INITIAL STATE VALUES ---
 const DEFAULT_PROVIDER_SERVICES = [];
@@ -112,8 +108,26 @@ const ALL_DIRECTORY_SERVICES = [
   }
 ];
 
+const DASH_TABS = {
+  provider: [
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { key: 'ledger', label: 'Ledger', icon: Wallet },
+    { key: 'calendar', label: 'Calendar', icon: CalendarDays },
+    { key: 'profile', label: 'Profile', icon: UserRound },
+    { key: 'referral-program', label: 'Referrals', icon: Gift },
+  ],
+  consumer: [
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { key: 'bookings', label: 'Bookings', icon: CalendarDays },
+    { key: 'invoices', label: 'Invoices', icon: FileText },
+    { key: 'profile', label: 'Profile', icon: UserRound },
+    { key: 'referral-program', label: 'Referrals', icon: Gift },
+  ],
+};
+
 const UserDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, i18n } = useTranslation();
   const isRtl = i18n.language === 'ar';
   const rowDirection = isRtl ? 'flex-row-reverse' : 'flex-row';
@@ -125,7 +139,7 @@ const UserDashboard = () => {
   // --- ACTIVE VIEWPORT ROLE STATE ---
   // Starts as null — will be set from DB after fetch to avoid flashing wrong role
   const [currentRole, setCurrentRole] = useState(null);
-  const [activeTab, setActiveTab] = useState(() => {
+  const [savedTab, setActiveTab] = useState(() => {
     return localStorage.getItem('activeDashboardTab') || 'overview';
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -212,6 +226,9 @@ const UserDashboard = () => {
         navigate('/login');
         return;
       }
+      // link the partner who referred them (code from a ?ref link, the
+      // post-registration step, or the sign-up); no-op when there is none
+      import('../../lib/referrals').then((m) => m.claimPendingSponsor()).catch(() => {});
       if (isMounted) {
         setPartnerData(freshData);
         // Always set role from DB — this is the source of truth
@@ -226,6 +243,20 @@ const UserDashboard = () => {
       isMounted = false;
     };
   }, [navigate]);
+
+  // links from the sidebar journey card: ?open=ai | ?open=agreement | ?tab=<tab>
+  // (runs after loading and again whenever the link changes while on the dashboard)
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(location.search);
+    const open = params.get('open');
+    const tab = params.get('tab');
+    if (!open && !tab) return;
+    if (open === 'ai') setIsAIModalOpen(true);
+    if (open === 'agreement') setIsAgreementOpen(true);
+    if (tab) { setActiveTab(tab); localStorage.setItem('activeDashboardTab', tab); }
+    navigate(location.pathname, { replace: true });
+  }, [location.search, location.pathname, loading, navigate]);
 
   // Persist Local State Changes
   useEffect(() => {
@@ -264,6 +295,9 @@ const UserDashboard = () => {
       }
     }
   };
+
+  // a saved or linked tab that this role no longer has falls back to Overview
+  const activeTab = (currentRole === 'provider' ? DASH_TABS.provider : DASH_TABS.consumer).some((t) => t.key === savedTab) ? savedTab : 'overview';
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -365,10 +399,7 @@ const UserDashboard = () => {
     const newService = {
       id: `prov-${Date.now()}`,
       title: e.target.title.value,
-      category: e.target.category.value,
       description: e.target.description.value,
-      price: parseFloat(e.target.price.value || '0'),
-      unit: e.target.unit.value,
       status: 'Active'
     };
     setListedServices((prev) => [...prev, newService]);
@@ -443,7 +474,7 @@ const UserDashboard = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E52E38] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#DC2626] mx-auto mb-4"></div>
           <p className="text-slate-600 font-medium">Initializing Dashboard Components...</p>
         </div>
       </div>
@@ -460,27 +491,52 @@ const UserDashboard = () => {
         handleTabChange={handleTabChange}
         activeTab={activeTab}
       />
-      <div className="min-h-screen bg-[#FAFCFF] text-slate-800 flex flex-col relative transition-colors duration-300 font-['Plus_Jakarta_Sans',sans-serif] overflow-hidden">
-        {/* Reddish Liquid Glass Background Blobs */}
-        <div className="absolute top-[-10%] left-[-10%] w-[650px] h-[650px] rounded-full bg-gradient-to-tr from-[#E52E38]/18 via-[#E52E38]/8 to-transparent blur-[140px] pointer-events-none z-0"></div>
-        <div className="absolute top-[30%] right-[-10%] w-[550px] h-[550px] rounded-full bg-gradient-to-bl from-[#E52E38]/14 via-[#E52E38]/6 to-transparent blur-[120px] pointer-events-none z-0"></div>
-        <div className="absolute bottom-[-10%] left-[20%] w-[750px] h-[750px] rounded-full bg-gradient-to-r from-[#0F2A4A]/8 to-[#E52E38]/12 blur-[160px] pointer-events-none z-0"></div>
+      <div className="lg-dash relative flex min-h-screen flex-col overflow-hidden bg-[#f5f5f7] text-[#1d1d1f]">
+        <div className="lg-liquid-bg" aria-hidden="true">
+          <i className="is-grey" style={{ width: 640, height: 640, top: '-12%', insetInlineStart: '-10%' }} />
+          <i className="is-grey" style={{ width: 520, height: 520, top: '35%', insetInlineEnd: '-12%' }} />
+        </div>
 
-        {/* Dashboard Main Container */}
-        <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8 relative z-10">
-          {/* Centered Headline welcome section */}
-          <div className="flex flex-col items-center justify-center text-center relative pt-4">
-            {/* 3D Curved Box Badge */}
-            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-2xl bg-white border border-slate-200 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.05),0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] mb-4 transition-all">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#E52E38] animate-pulse"></span>
-              <span className="text-[11px] font-bold tracking-widest text-[#0F2A4A] uppercase font-sans">
+        <main className="relative z-10 mx-auto w-full max-w-[1120px] flex-grow space-y-8 px-5 py-10 sm:px-8 lg:px-10">
+          {/* Welcome + role + tabs */}
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <span className="lg-chip !py-1.5 !text-[12px]">
+                <span className="lg-pulse-dot" aria-hidden="true" />
                 {currentRole === 'provider' ? 'Service Provider' : 'Service Consumer'}
               </span>
+              <h1 className="mt-4 text-[clamp(22px,2.6vw,34px)] font-semibold leading-[1.15] tracking-[-0.03em] text-[#1d1d1f] lg:whitespace-nowrap">
+                {`Welcome back, ${partnerData?.firstName || 'Partner'}. `}
+                <span className="text-[#86868b]">{currentRole === 'provider' ? 'Here is your practice today.' : 'Here is what is moving.'}</span>
+              </h1>
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-[#0F2A4A] tracking-tight">
-              Welcome back, {partnerData?.firstName || 'Partner'}
-            </h1>
+            <button type="button" onClick={handleRoleSwitch} className="lg-btn lg-btn-outline lg-btn-sm self-start !bg-white lg:self-auto">
+              Switch to {currentRole === 'provider' ? 'Consumer' : 'Provider'}
+            </button>
           </div>
+
+          <nav className="lg-scroll-x -mx-1 px-1" aria-label="Dashboard sections">
+            <div className="lg-dash-tabs">
+              {(currentRole === 'provider' ? DASH_TABS.provider : DASH_TABS.consumer).map(({ key, label, icon: TabIcon }) => {
+                const active = activeTab === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleTabChange(key)}
+                    className={`lg-dash-tab ${active ? 'is-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {active ? (
+                      <motion.span layoutId="lg-dash-tab-pill" className="lg-slab-active absolute inset-0 -z-0 rounded-full" transition={{ type: 'spring', stiffness: 260, damping: 17, mass: 0.9 }} />
+                    ) : null}
+                    <TabIcon className="relative h-4 w-4" strokeWidth={1.8} />
+                    <span className="relative">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
 
           {/* -------------------- ROLE 1: SERVICE PROVIDER CONTENT -------------------- */}
           {currentRole === 'provider' && (
@@ -492,15 +548,6 @@ const UserDashboard = () => {
                   providerConsultations={providerConsultations}
                   partnerData={partnerData}
                   handleTabChange={handleTabChange}
-                />
-              )}
-              {activeTab === 'services' && (
-                <ProviderServices
-                  listedServices={listedServices}
-                  setListedServices={setListedServices}
-                  isCreateServiceOpen={isCreateServiceOpen}
-                  setIsCreateServiceOpen={setIsCreateServiceOpen}
-                  handleCreateServiceSubmit={handleCreateServiceSubmit}
                 />
               )}
               {activeTab === 'ledger' && (
@@ -528,6 +575,7 @@ const UserDashboard = () => {
                   handleTabChange={handleTabChange}
                 />
               )}
+              {activeTab === 'referral-program' && <DashboardReferrals />}
             </>
           )}
 
@@ -542,30 +590,6 @@ const UserDashboard = () => {
                   partnerData={partnerData}
                 />
               )}
-              {activeTab === 'directory' && (
-                <ConsumerDirectory
-                  exploreSearch={exploreSearch}
-                  setExploreSearch={setExploreSearch}
-                  exploreCategory={exploreCategory}
-                  setExploreCategory={setExploreCategory}
-                  filteredDirectory={filteredDirectory}
-                  selectedServiceToBook={selectedServiceToBook}
-                  setSelectedServiceToBook={setSelectedServiceToBook}
-                  isBookModalOpen={isBookModalOpen}
-                  setIsBookModalOpen={setIsBookModalOpen}
-                  handleBookServiceSubmit={handleBookServiceSubmit}
-                />
-              )}
-              {activeTab === 'ai-assistant' && (
-                <ConsumerAiAssistant
-                  aiMatchMessage={aiMatchMessage}
-                  setAiMatchMessage={setAiMatchMessage}
-                  isAiMatching={isAiMatching}
-                  matchedExpertResult={matchedExpertResult}
-                  handleVoiceRequirementSubmit={handleVoiceRequirementSubmit}
-                  setIsRequirementModalOpen={setIsRequirementModalOpen}
-                />
-              )}
               {activeTab === 'bookings' && (
                 <ConsumerBookings
                   clientBookings={clientBookings}
@@ -576,12 +600,6 @@ const UserDashboard = () => {
                 <ConsumerInvoices
                   clientInvoices={clientInvoices}
                   handlePayInvoice={handlePayInvoice}
-                />
-              )}
-              {activeTab === 'settings' && (
-                <ConsumerSettings
-                  clientSettings={clientSettings}
-                  handleClientSettingsSubmit={handleClientSettingsSubmit}
                 />
               )}
               {activeTab === 'profile' && (
@@ -600,6 +618,7 @@ const UserDashboard = () => {
                   handleTabChange={handleTabChange}
                 />
               )}
+              {activeTab === 'referral-program' && <DashboardReferrals />}
             </>
           )}
         </main>
@@ -616,7 +635,7 @@ const UserDashboard = () => {
             >
               <X className="w-5 h-5" />
             </button>
-            <span className="text-[10px] font-bold tracking-widest text-[#E52E38] uppercase">
+            <span className="text-[10px] font-bold tracking-widest text-[#DC2626] uppercase">
               PROVIDER SETUP • CREDENTIALS
             </span>
             <h3 className="text-xl font-black text-slate-900 mt-1 mb-2">
@@ -687,7 +706,7 @@ const UserDashboard = () => {
               </div>
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#0F2A4A] hover:bg-[#0A1D34] transition-all shadow-md mt-2 cursor-pointer"
+                className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#1D1D1F] hover:bg-[#1D1D1F] transition-all shadow-md mt-2 cursor-pointer"
               >
                 Save Credentials & Complete Step
               </button>
@@ -705,7 +724,7 @@ const UserDashboard = () => {
             >
               <X className="w-5 h-5" />
             </button>
-            <span className="text-[10px] font-bold tracking-widest text-[#E52E38] uppercase">
+            <span className="text-[10px] font-bold tracking-widest text-[#DC2626] uppercase">
               PROVIDER SETUP • FINANCES
             </span>
             <h3 className="text-xl font-black text-slate-900 mt-1 mb-2">Link Bank Account</h3>
@@ -751,7 +770,7 @@ const UserDashboard = () => {
               </div>
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#0F2A4A] hover:bg-[#0A1D34] transition-all shadow-md mt-2 cursor-pointer"
+                className="w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#1D1D1F] hover:bg-[#1D1D1F] transition-all shadow-md mt-2 cursor-pointer"
               >
                 Confirm Bank Details Link
               </button>
@@ -773,24 +792,18 @@ const UserDashboard = () => {
         }}
         partnerData={partnerData}
       />
-      <TermsAgreementModal
+      <PartnerAgreementModal
         isOpen={isAgreementOpen}
         onClose={() => setIsAgreementOpen(false)}
         partnerData={partnerData}
-        isSigned={agreementSigned || Boolean(partnerData?.agreementSigned)}
-        onSubmitted={async ({ signedName, signedAt }) => {
-          await submitPartnerAgreement({
-            partnerId: partnerData?.id,
-            partnerEmail: partnerData?.email,
-            signedName,
-            signedAt
-          });
+        onSigned={(row) => {
+          // the agreement row is saved and the profile marked signed inside the modal
           setPartnerData((prev) => {
             const updated = {
               ...(prev || {}),
               agreementSigned: true,
-              agreementSignedName: signedName,
-              agreementSignedAt: signedAt
+              agreementSignedName: row?.signatures?.agreement?.name || prev?.agreementSignedName,
+              agreementSignedAt: row?.signed_at || new Date().toISOString()
             };
             localStorage.setItem('partnerUser', JSON.stringify(updated));
             return updated;

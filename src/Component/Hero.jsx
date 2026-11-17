@@ -1,8 +1,8 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Star, ArrowDown, Expand, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 const StartChattingSection = lazy(() => import('./StartChattingSection'));
 
 const PartnerFormModal = lazy(() => import('./PartnerFormModal'));
@@ -47,6 +47,14 @@ const Hero = () => {
   const [shouldRenderMap, setShouldRenderMap] = useState(false);
   const [partnerUser, setPartnerUser] = useState(null);
   const location = useLocation();
+  // scroll-linked motion: text drifts up and fades, the map rises and zooms in
+  const heroRef = useRef(null);
+  const reduceMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
+  const textY = useTransform(scrollYProgress, [0, 0.6], [0, -90]);
+  const textOpacity = useTransform(scrollYProgress, [0, 0.45], [1, 0]);
+  const mapY = useTransform(scrollYProgress, [0, 1], [0, -120]);
+  const mapScale = useTransform(scrollYProgress, [0, 1], [1, 1.12]);
   const heroAnimationVideoSrc = import.meta.env.VITE_HERO_ANIMATION_VIDEO_SRC || '';
   const isRtl = i18n.language === 'ar';
   const textAlign = isRtl ? 'text-right' : 'text-left';
@@ -156,7 +164,7 @@ const Hero = () => {
 
   return (
     <>
-      <section id="home" className="relative min-h-screen overflow-hidden text-slate-900 -mt-16 pt-16 sm:pt-24 lg:pt-15" dir={isRtl ? 'rtl' : 'ltr'}>
+      <section ref={heroRef} id="home" className="relative min-h-screen overflow-hidden text-slate-900 -mt-16 pt-16 sm:pt-24 lg:pt-15" dir={isRtl ? 'rtl' : 'ltr'}>
         <style dangerouslySetInnerHTML={{
           __html: `
           @keyframes liquid-blob-1 {
@@ -187,20 +195,23 @@ const Hero = () => {
           }
         `}} />
         {isChatOpen && (
-          <section className={`fixed bottom-4 ${isRtl ? 'left-5 sm:left-8' : 'right-5 sm:right-8'} z-50 flex h-[min(472px,calc(100dvh-5rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl`} aria-label="AI assistant chat">
-            <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4">
-              <span className="text-sm font-semibold text-slate-900">BNC AI Assistant</span>
+          <section className={`lg-glass fixed bottom-4 ${isRtl ? 'left-5 sm:left-8' : 'right-5 sm:right-8'} z-50 flex h-[min(472px,calc(100dvh-5rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col !rounded-[26px]`} aria-label="AI assistant chat">
+            <header className="flex h-12 shrink-0 items-center justify-between border-b border-black/[0.06] px-4">
+              <span className="flex items-center gap-2 text-[13.5px] font-semibold text-[#1d1d1f]">
+                <span className="lg-pulse-dot" aria-hidden="true" />
+                BNC AI Assistant
+              </span>
               <div className="flex items-center gap-1">
-                <Link to="/start-chatting" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-[#DC2626]" aria-label="Open full chat" title="Open full chat">
+                <Link to="/start-chatting" className="grid h-8 w-8 place-items-center rounded-full text-[#6e6e73] transition-colors hover:bg-black/[0.05] hover:text-[#1d1d1f]" aria-label="Open full chat" title="Open full chat">
                   <Expand className="h-4 w-4" />
                 </Link>
-                <button type="button" onClick={() => setIsChatOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close chat">
+                <button type="button" onClick={() => setIsChatOpen(false)} className="grid h-8 w-8 place-items-center rounded-full text-[#6e6e73] transition-colors hover:bg-black/[0.05] hover:text-[#1d1d1f]" aria-label="Close chat">
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </header>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <Suspense fallback={<div className="h-full animate-pulse bg-slate-50" />}>
+            <div className="min-h-0 flex-1 overflow-hidden bg-white/70">
+              <Suspense fallback={<div className="h-full animate-pulse bg-[#f5f5f7]" />}>
                 <StartChattingSection compact />
               </Suspense>
             </div>
@@ -220,17 +231,18 @@ const Hero = () => {
           />
         </button>
         {/* Liquid Glass Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#fffcfc] via-[#fcfbf9] to-[#f8f6f2]">
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 15% 20%, #dbe8ff 0, transparent 40%), radial-gradient(circle at 85% 30%, #e9e4ff 0, transparent 38%), linear-gradient(180deg, #f7f9fe, #eaf0fb)' }}>
           {/* Animated Liquid Blobs */}
-          <div className={`absolute -top-12 ${isRtl ? '-left-12' : '-right-12'} w-[450px] h-[450px] rounded-full bg-[#DC2626]/12 blur-[80px] animate-liquid-1`} />
-          <div className={`absolute top-48 ${isRtl ? 'right-24' : 'left-24'} w-[400px] h-[400px] rounded-full bg-rose-500/8 blur-[90px] animate-liquid-2`} />
-          <div className="absolute bottom-24 right-[15%] w-[420px] h-[420px] rounded-full bg-amber-400/8 blur-[100px] animate-liquid-3" />
-          <div className={`absolute bottom-[-10%] ${isRtl ? 'right-0' : 'left-0'} w-[380px] h-[380px] rounded-full bg-[#DC2626]/8 blur-[85px] animate-liquid-1`} />
+          <div className={`absolute -top-12 ${isRtl ? '-left-12' : '-right-12'} w-[450px] h-[450px] rounded-full bg-[#c9dbff]/60 blur-[80px] animate-liquid-1`} />
+          <div className={`absolute top-48 ${isRtl ? 'right-24' : 'left-24'} w-[400px] h-[400px] rounded-full bg-[#e4dcff]/60 blur-[90px] animate-liquid-2`} />
+          <div className="absolute bottom-24 right-[15%] w-[420px] h-[420px] rounded-full bg-[#d6e4ff]/50 blur-[100px] animate-liquid-3" />
+          <div className={`absolute bottom-[-10%] ${isRtl ? 'right-0' : 'left-0'} w-[380px] h-[380px] rounded-full bg-[#ece6ff]/50 blur-[85px] animate-liquid-1`} />
 
           {/* Frosted Glass Overlay */}
-          <div className="absolute inset-0 backdrop-blur-[80px] bg-white/40 bg-[linear-gradient(135deg,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0.15)_100%)]" />
+          <div className="absolute inset-0 backdrop-blur-[80px] bg-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0.15)_100%)]" />
         </div>
 
+        <motion.div className="relative z-20" style={reduceMotion ? undefined : { y: textY, opacity: textOpacity }}>
         <motion.div
           className="relative max-w-7xl mx-auto px-6 lg:px-8 pt-10 sm:pt-12 lg:pt-16 pb-0 z-20"
           variants={containerVariants}
@@ -240,21 +252,18 @@ const Hero = () => {
           <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
             {/* Badge */}
             <motion.div className="mb-4 sm:mb-6" variants={itemVariants}>
-              <div className="inline-flex items-center gap-2 bg-[#fdfbf7] px-6 py-2.5 rounded-full shadow-[6px_6px_12px_#e5e2db,-6px_-6px_12px_#ffffff] border border-white/60 text-[#DC2626] text-xs sm:text-sm font-extrabold tracking-wider uppercase font-geist transition-all duration-300 hover:shadow-[3px_3px_6px_#e5e2db,-3px_-3px_6px_#ffffff] hover:-translate-y-0.5 select-none">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#DC2626]/80 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#DC2626]"></span>
-                </span>
-                <span>{t('hero.badge')}</span>
-              </div>
+              <span className="lg-chip select-none">
+                <span className="lg-pulse-dot" aria-hidden="true" />
+                <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d1d1f] rtl:tracking-normal">{t('hero.badge')}</span>
+              </span>
             </motion.div>
 
 
             <motion.h1
-              className="font-capriola text-5xl sm:text-6xl md:text-7xl font-extrabold text-slate-900 leading-tight tracking-tight max-w-5xl mx-auto mb-1 flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-2"
+              className="font-capriola text-5xl sm:text-6xl md:text-7xl font-light text-[#1d1d1f] leading-tight tracking-[-0.04em] max-w-5xl mx-auto mb-1 flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-2"
               variants={itemVariants}
             >
-              <span>{t('hero.titlePrefix')}</span>
+              <span className="relative -translate-y-1.5 sm:-translate-y-2 lg:-translate-y-2.5">{t('hero.titlePrefix')}</span>
               <img
                 src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png"
                 alt="BNC LEG"
@@ -283,13 +292,13 @@ const Hero = () => {
             >
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-full font-geist font-medium text-base text-white bg-black hover:bg-neutral-900 transition-all duration-300 shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center"
+                className="lg-btn lg-btn-ink lg-btn-grow w-full sm:w-auto !min-h-[52px] !px-9 !text-[16px]"
               >
                 {t('hero.becomePartner')}
               </button>
               <Link
                 to={isLoggedIn ? "/dashboard" : "/login"}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-full font-geist font-medium text-base text-slate-900 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center text-center"
+                className="lg-btn lg-btn-glass lg-btn-grow w-full sm:w-auto !min-h-[52px] !px-9 !text-[16px]"
               >
                 {t('hero.partnerLogin')}
               </Link>
@@ -297,14 +306,16 @@ const Hero = () => {
           </div>
         </motion.div>
 
+        </motion.div>
+
         {/* Map / Video Section (Adjustable size and alignment) */}
         <motion.div
-          className="relative w-full max-w-none z-10 flex justify-center mt-4 sm:mt-6 lg:mt-8 pb-12"
+          className="relative w-full max-w-none z-10 flex justify-center mt-4 sm:mt-2 lg:-mt-4 pb-12"
           variants={mapVariants}
           initial="hidden"
           animate="visible"
         >
-          <div className="relative w-full max-w-[1350px] px-6 lg:px-8 hover:scale-[1.01] transition-transform duration-500">
+          <motion.div style={reduceMotion ? undefined : { y: mapY, scale: mapScale }} className="relative w-full max-w-[1350px] px-6 lg:px-8 origin-top">
             {heroAnimationVideoSrc ? (
               <video
                 src={heroAnimationVideoSrc}
@@ -329,7 +340,7 @@ const Hero = () => {
             ) : (
               <div className="aspect-[2/1] w-full rounded-3xl bg-white/40" aria-hidden="true" />
             )}
-          </div>
+          </motion.div>
         </motion.div>
       </section>
 

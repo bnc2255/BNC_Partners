@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,8 +10,13 @@ import {
   ArrowRight,
   ShieldCheck,
   Gift,
-  FileText
+  FileText,
+  Check
 } from 'lucide-react';
+import { getAgreement } from '../../../lib/agreements';
+
+// changes when the partner signs, so the agreement status is fetched again
+const isAgreementSignedKey = (flag, p) => `${Boolean(flag)}-${p?.agreementSignedAt || ''}`;
 
 const ProviderProfile = ({
   partnerData,
@@ -33,7 +38,34 @@ const ProviderProfile = ({
   const profileCompleted = checklistState?.profileCompleted || false;
   const bankLinked = checklistState?.bankLinked || false;
   const servicePublished = checklistState?.servicePublished || false;
-  const actualAgreementSigned = agreementSigned || checklistState?.agreementSigned || Boolean(partnerData?.agreementSigned) || false;
+  const legacySigned = agreementSigned || checklistState?.agreementSigned || Boolean(partnerData?.agreementSigned) || false;
+
+  // the three agreement documents (table partner_agreements); null = table not available
+  const [agreement, setAgreement] = useState(undefined);
+  // referral program status and code for the side card
+  const [ref, setRef] = useState(null);
+  useEffect(() => {
+    if (!partnerData?.id) return undefined;
+    let alive = true;
+    getAgreement(partnerData.id).then((r) => alive && setAgreement(r)).catch(() => alive && setAgreement(null));
+    import('../../../lib/referrals').then(async (m) => {
+      const [refs, code] = await Promise.all([
+        m.getMyReferrals(partnerData.id).catch(() => []),
+        m.getMyReferralCode().catch(() => ''),
+      ]);
+      if (alive) setRef({ count: refs.length, code });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [partnerData?.id, isAgreementSignedKey(agreementSigned, partnerData)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sig = agreement?.signatures || {};
+  const agreementDocs = [
+    { key: 'agreement', title: 'Partner Agreement', sub: 'Memorandum of Understanding', done: !!sig.agreement },
+    { key: 'annexures', title: 'Annexures A–D', sub: 'Fees, verification, brand, service levels', done: !!sig.annexures },
+    { key: 'consent', title: 'Annexure E', sub: 'Advertisement & promotion consent', done: !!sig.consent },
+  ];
+  // signed = all three documents on file (falls back to the old flag if the table is not set up)
+  const actualAgreementSigned = agreement === null ? legacySigned : agreementDocs.every((d) => d.done);
 
   // Checklist configuration — Steps 2 (credentials) and 4 (bank) removed
   const steps = [
@@ -63,23 +95,7 @@ const ProviderProfile = ({
       icon: PenTool,
       action: () => setIsAgreementOpen(true),
       actionLabel: "Sign Agreement",
-      viewAction: () => setIsAgreementOpen(true),
-      viewActionLabel: t('termsAgreement.readSignedAgreement', 'Read Signed Agreement'),
-      details: actualAgreementSigned
-        ? `Digitally signed as ${partnerData?.agreementSignedName || partnerData?.firstName || 'Partner'}`
-        : null
-    },
-    {
-      id: 4,
-      title: "Publish First Consulting Offer",
-      desc: "Publish at least one strategy consulting package to start receiving client bookings.",
-      completed: servicePublished,
-      icon: Store,
-      action: () => handleTabChange('services'),
-      actionLabel: "Create Offering",
-      details: servicePublished && listedServices
-        ? `Live offerings: ${listedServices.length} packages published`
-        : null
+      docs: agreementDocs
     }
   ];
 
@@ -88,15 +104,15 @@ const ProviderProfile = ({
   const nextStep = steps.find(s => !s.completed);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in">
       {/* Left: Verification status and checklist */}
       <div className="lg:col-span-8 space-y-6">
         {/* Onboarding Checklist Box */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
           <div className="mb-6">
             <div className="flex items-center space-x-3 mb-2">
-              <div className="w-1.5 h-6 bg-[#E52E38] rounded-full"></div>
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#E52E38]">
+              <div className="w-1.5 h-6 bg-[#DC2626] rounded-full"></div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#DC2626]">
                 Onboarding Guide
               </span>
             </div>
@@ -118,7 +134,7 @@ const ProviderProfile = ({
                     step.completed
                       ? 'border-slate-200/50 bg-slate-50/50'
                       : nextStep?.id === step.id
-                      ? 'border-[#E52E38] bg-white shadow-sm'
+                      ? 'border-[#DC2626] bg-white shadow-sm'
                       : 'border-slate-200 bg-white'
                   }`}
                 >
@@ -128,7 +144,7 @@ const ProviderProfile = ({
                       step.completed
                         ? 'bg-emerald-100 text-emerald-600 border border-emerald-200'
                         : nextStep?.id === step.id
-                        ? 'bg-[#E52E38]/10 text-[#E52E38] border border-[#E52E38]/20'
+                        ? 'bg-[#DC2626]/10 text-[#DC2626] border border-[#DC2626]/20'
                         : 'bg-slate-50 text-slate-500 border border-slate-200'
                     }`}
                   >
@@ -161,7 +177,7 @@ const ProviderProfile = ({
                           <button
                             type="button"
                             onClick={step.viewAction}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all shadow-xs hover:shadow-sm"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#1D1D1F] hover:bg-[#1D1D1F] text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all shadow-xs hover:shadow-sm"
                             title="Read what you have signed and view your signature"
                           >
                             <FileText className="w-3.5 h-3.5 text-emerald-400" />
@@ -170,10 +186,32 @@ const ProviderProfile = ({
                         )}
                       </div>
                     )}
+                    {step.docs && (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {step.docs.map((d) => (
+                          <button
+                            key={d.key}
+                            type="button"
+                            onClick={() => setIsAgreementOpen(true)}
+                            className={`flex items-start gap-2.5 border p-3 text-left transition-colors ${d.done ? 'border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                            style={{ borderRadius: '16px 5px 16px 5px' }}
+                          >
+                            <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full ${d.done ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200 bg-white text-slate-300'}`}>
+                              {d.done ? <Check className="h-3.5 w-3.5" /> : <FileText className="h-3 w-3" />}
+                            </span>
+                            <span className="min-w-0">
+                              <span className={`block text-[12px] font-bold ${d.done ? 'text-emerald-800' : 'text-slate-900'}`}>{d.title}</span>
+                              <span className="block text-[10.5px] leading-snug text-slate-500">{d.sub}</span>
+                              <span className={`mt-1 block text-[10px] font-bold uppercase tracking-wider ${d.done ? 'text-emerald-600' : 'text-slate-400'}`}>{d.done ? 'Signed' : 'Pending'}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {!step.completed && step.action && (
                       <button
                         onClick={step.action}
-                        className="mt-2.5 px-4 py-1.5 rounded-lg bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-colors shadow-xs"
+                        className="mt-2.5 px-4 py-1.5 rounded-lg bg-[#1D1D1F] hover:bg-[#1D1D1F] text-white font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-colors shadow-xs"
                       >
                         {step.actionLabel}
                       </button>
@@ -192,7 +230,7 @@ const ProviderProfile = ({
         <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 hover:shadow-[0_16px_32px_-8px_rgba(15,42,74,0.08)] transition-all duration-300">
           <h3 className="text-lg font-black text-slate-900 mb-2">Profile Overview</h3>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#0F2A4A] text-white flex items-center justify-center font-black text-sm uppercase">
+            <div className="w-12 h-12 rounded-full bg-[#1D1D1F] text-white flex items-center justify-center font-black text-sm uppercase">
               {partnerData?.firstName?.slice(0, 1)}
               {partnerData?.lastName?.slice(0, 1)}
             </div>
@@ -223,16 +261,16 @@ const ProviderProfile = ({
 
         {/* Dynamic Next Step card */}
         {nextStep && (
-          <div className="bg-white rounded-3xl p-6 border border-[#E52E38]/30 shadow-[0_12px_24px_-8px_rgba(229,46,56,0.08)] space-y-4 hover:shadow-md transition-all duration-300 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-24 h-24 bg-[#E52E38]/5 rounded-bl-full shrink-0 -z-1" />
+          <div className="bg-white rounded-3xl p-6 border border-[#DC2626]/30 shadow-[0_12px_24px_-8px_rgba(229,46,56,0.08)] space-y-4 hover:shadow-md transition-all duration-300 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-24 h-24 bg-[#DC2626]/5 rounded-bl-full shrink-0 -z-1" />
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-[#E52E38]" />
+              <ShieldCheck className="w-5 h-5 text-[#DC2626]" />
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                 Next Action Required
               </h3>
             </div>
             <div>
-              <h4 className="text-xs font-extrabold text-[#0F2A4A]">
+              <h4 className="text-xs font-extrabold text-[#1D1D1F]">
                 {nextStep.id}. {nextStep.title}
               </h4>
               <p className="text-[11px] text-slate-550 font-medium leading-relaxed mt-1">
@@ -242,7 +280,7 @@ const ProviderProfile = ({
             {nextStep.action && (
               <button
                 onClick={nextStep.action}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#E52E38] to-[#0F2A4A] hover:opacity-90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#DC2626] to-[#1D1D1F] hover:opacity-90 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
               >
                 <span>{nextStep.actionLabel}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -251,75 +289,70 @@ const ProviderProfile = ({
           </div>
         )}
 
-        {/* AI Profile status card */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 hover:shadow-[0_16px_32px_-8px_rgba(15,42,74,0.08)] transition-all duration-300">
-          <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-[#E52E38]" />
-            <h3 className="text-md font-black text-slate-900">AI Profile Optimizer</h3>
-          </div>
-          <p className="text-xs text-slate-500 leading-relaxed font-medium">
-            Optimized credentials help double client matches. Let AI help draft your expert
-            biography.
-          </p>
-          <div className="pt-2">
+        {/* AI Profile card: shown only until the AI profile is complete */}
+        {!aiProfileCompleted && (
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 hover:shadow-[0_16px_32px_-8px_rgba(15,42,74,0.08)] transition-all duration-300">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-[#DC2626]" />
+              <h3 className="text-md font-black text-slate-900">AI Profile Optimizer</h3>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed font-medium">
+              Optimized credentials help double client matches. Let AI help draft your expert biography.
+            </p>
             <button
               onClick={() => setIsAIModalOpen(true)}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white transition-all cursor-pointer ${
-                aiProfileCompleted
-                  ? 'bg-emerald-500 text-white cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#E52E38] to-[#0F2A4A] hover:opacity-90'
-              }`}
-              disabled={aiProfileCompleted}
+              className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-gradient-to-r from-[#DC2626] to-[#1D1D1F] hover:opacity-90 transition-all cursor-pointer"
             >
-              {aiProfileCompleted ? 'AI Profile Completed ✓' : 'Start AI Profile Builder'}
+              Start AI Profile Builder
             </button>
           </div>
-        </div>
+        )}
 
-        {/* Referral Program Card */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#0F2A4A] to-[#1a4a7a] rounded-3xl p-6 border border-[#0F2A4A]/20 shadow-lg space-y-4 hover:shadow-[0_16px_32px_-8px_rgba(15,42,74,0.25)] transition-all duration-300 cursor-pointer group"
-          onClick={() => navigate('/referral-program')}
+        {/* Referral Program card: live figures */}
+        <div
+          className="relative overflow-hidden rounded-3xl border border-[#FECACA] p-6 shadow-sm transition-all duration-300 hover:shadow-[0_16px_32px_-12px_rgba(220,38,38,0.25)]"
+          style={{ background: 'radial-gradient(120% 90% at 100% 0%, rgba(220,38,38,0.14), transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(220,38,38,0.08), transparent 60%), #fff' }}
         >
-          {/* Decorative blob */}
-          <div className="absolute -top-8 -right-8 w-32 h-32 bg-[#E52E38]/20 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/5 rounded-full blur-xl pointer-events-none" />
-
-          {/* Header */}
-          <div className="flex items-center gap-2.5 relative">
-            <div className="w-9 h-9 rounded-xl bg-[#E52E38] flex items-center justify-center shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-              <Gift className="w-4.5 h-4.5 text-white" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#DC2626] text-white shadow-[0_8px_18px_-8px_rgba(220,38,38,0.7)]">
+                <Gift className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[9px] font-extrabold uppercase tracking-[2px] text-[#DC2626]">Refer &amp; earn</span>
+                <h3 className="text-sm font-black leading-tight text-slate-900">Referral Program</h3>
+              </div>
             </div>
-            <div>
-              <span className="text-[9px] font-extrabold uppercase tracking-[2px] text-[#E52E38]/80">Earn More</span>
-              <h3 className="text-sm font-black text-white leading-tight">Referral Program</h3>
-            </div>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${ref?.count ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
+              {ref?.count ? 'Enrolled' : 'Not started'}
+            </span>
           </div>
 
-          {/* Description */}
-          <p className="text-xs text-white/70 leading-relaxed font-medium relative">
-            Invite partners and earn rewards for every successful referral that joins the BnC LEG network.
+          <p className="mt-3 text-xs font-medium leading-relaxed text-slate-600">
+            Earn up to <span className="font-bold text-[#DC2626]">5%</span> on every client project you bring, plus a bonus when partners in your chain bring projects.
           </p>
 
-          {/* Stats row */}
-          <div className="grid grid-cols-2 gap-3 relative">
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-white">₹</p>
-              <p className="text-[10px] text-white/60 font-semibold">Earn Rewards</p>
+          {ref?.code && (
+            <div className="mt-3 flex items-center justify-between rounded-2xl bg-[#1D1D1F] px-3.5 py-2.5 text-white">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">Your code</span>
+              <span className="font-mono text-sm font-bold tracking-[0.2em]">{ref.code}</span>
             </div>
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-lg font-black text-white">∞</p>
-              <p className="text-[10px] text-white/60 font-semibold">No Limit</p>
-            </div>
-          </div>
+          )}
 
-          {/* CTA */}
-          <button
-            onClick={(e) => { e.stopPropagation(); navigate('/referral-program'); }}
-            className="w-full py-2.5 rounded-xl bg-[#E52E38] hover:bg-[#C81E27] text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md relative"
-          >
-            <span>View Referral Program</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleTabChange('referral-program')}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-[#DC2626] py-2.5 text-[11px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#B91C1C]"
+            >
+              {ref?.count ? 'My referrals' : 'Refer a client'} <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => navigate('/referral-program')}
+              className="rounded-xl border border-slate-200 bg-white py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              How it works
+            </button>
+          </div>
         </div>
 
       </div>

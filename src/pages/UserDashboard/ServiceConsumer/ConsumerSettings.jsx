@@ -75,7 +75,7 @@ const ConsumerSettings = ({ clientSettings, handleClientSettingsSubmit }) => {
 
         <button
           type="submit"
-          className="w-full py-3.5 rounded-xl bg-[#0F2A4A] hover:bg-[#0A1D34] text-white font-extrabold text-xs uppercase tracking-wider shadow-md mt-4 cursor-pointer"
+          className="w-full py-3.5 rounded-xl bg-[#1D1D1F] hover:bg-[#1D1D1F] text-white font-extrabold text-xs uppercase tracking-wider shadow-md mt-4 cursor-pointer"
         >
           Save Preferences & Update Settings
         </button>

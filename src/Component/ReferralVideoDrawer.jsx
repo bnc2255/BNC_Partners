@@ -62,22 +62,22 @@ export default function ReferralVideoDrawer() {
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '1rem 1.4rem',
-              borderBottom: '1px solid #E2E8F0',
+              borderBottom: '1px solid #E3E3E8',
             }}>
               <div>
-                <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1E293B' }}>
+                <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: '0.95rem', color: '#1D1D1F' }}>
                   How the Referral Program Works
                 </div>
-                <div style={{ fontFamily: "'Geist',sans-serif", fontSize: '0.75rem', color: '#64748B', marginTop: 2 }}>
+                <div style={{ fontFamily: "'Geist',sans-serif", fontSize: '0.75rem', color: '#6E6E73', marginTop: 2 }}>
                   Watch to understand how you earn
                 </div>
               </div>
               <button
                 onClick={() => setOpen(false)}
                 style={{
-                  background: '#EEF2F7', border: 'none', borderRadius: '50%',
+                  background: '#F5F5F7', border: 'none', borderRadius: '50%',
                   width: 32, height: 32, cursor: 'pointer', fontSize: '0.95rem',
-                  color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#6E6E73', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 ✕

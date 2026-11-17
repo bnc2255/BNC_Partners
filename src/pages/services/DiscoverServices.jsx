@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, Mic, ChevronLeft, CheckCircle2, ArrowRight, X } from 'lucide-react';
+import { Search, Mic, ChevronLeft, CheckCircle2, X } from 'lucide-react';
+import { Glass, Reveal, RevealGroup, RevealItem, SplitHeading, Eyebrow, ArrowIcon } from '../../components/ui/premium';
 import Header from '../../Component/Header';
 import Footer from '../../Component/Footer';
 import { services } from '../../data/services';
@@ -193,17 +194,37 @@ const DiscoverServices = () => {
     return localizedServices.filter(s => allowedIds.includes(s.id));
   }, [activeCategory, localizedServices]);
 
-  // Filtered services by search query
+  // Keyword search: every meaningful word in the query (typed or spoken) is
+  // matched anywhere inside the title, summary, bullets or description, so
+  // "find cybersecurity services" or just "cyber" both find Cybersecurity.
+  // Results are ranked by how many keywords match and where.
   const filteredServices = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return categoryServices;
-    return localizedServices.filter(s => {
-      const titleMatch = s.title.toLowerCase().includes(query);
-      const summaryMatch = s.summary.toLowerCase().includes(query);
-      const bulletsMatch = s.bullets.some(b => b.toLowerCase().includes(query));
-      const descMatch = (s.description || []).some(d => d.toLowerCase().includes(query));
-      return titleMatch || summaryMatch || bulletsMatch || descMatch;
-    });
+    const raw = searchQuery.trim().toLowerCase();
+    if (!raw) return categoryServices;
+    const STOP = new Set(['a', 'an', 'and', 'the', 'for', 'of', 'to', 'in', 'on', 'me', 'my', 'i', 'we', 'our', 'is', 'are', 'with', 'about',
+      'find', 'show', 'search', 'get', 'need', 'want', 'looking', 'look', 'please', 'give', 'list', 'service', 'services', 'help', 'some', 'any']);
+    const words = raw.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !STOP.has(w));
+    // simple plural handling: "audits" also matches "audit"
+    const terms = words.map((w) => (w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w));
+    if (!terms.length) terms.push(raw);
+
+    return localizedServices
+      .map((service) => {
+        const title = service.title.toLowerCase();
+        const body = [service.summary, ...service.bullets].join(' ').toLowerCase();
+        const desc = (service.description || []).join(' ').toLowerCase();
+        let score = 0;
+        let matched = 0;
+        for (const term of terms) {
+          const hit = title.includes(term) ? 3 : body.includes(term) ? 2 : desc.includes(term) ? 1 : 0;
+          if (hit) matched += 1;
+          score += hit;
+        }
+        return { service, score: matched * 10 + score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.service);
   }, [searchQuery, categoryServices, localizedServices]);
 
   // Trending services (Finance, Growth, Security)
@@ -232,276 +253,252 @@ const DiscoverServices = () => {
 
   const isShowingResults = activeCategory !== 'All' || searchQuery.trim().length > 0;
 
+  const categoryLabel = (key) => t(`discoverServices.categories.${key.toLowerCase()}`, { defaultValue: key });
+
+  // a render helper (not a component) so cards are not remounted on every keystroke
+  const renderServiceCard = ({ service, tag, showSummary }) => (
+    <RevealItem key={service.id} className="h-full">
+      <article className="group lg-card is-hover flex h-full flex-col overflow-hidden">
+        <div className="relative h-48 overflow-hidden bg-[#f5f5f7]">
+          <img
+            src={service.image}
+            alt={service.title}
+            className="h-full w-full object-cover grayscale-[30%] transition-all duration-[1.2s] ease-[cubic-bezier(.2,.7,.1,1)] group-hover:scale-[1.04] group-hover:grayscale-0"
+            loading="lazy"
+          />
+          <span className="lg-chip absolute end-3 top-3 !py-1 !px-3 !text-[11px] !font-semibold uppercase tracking-[0.08em]">{tag}</span>
+        </div>
+        <div className="flex flex-1 flex-col p-6">
+          <h3 className="text-[19px] font-semibold tracking-[-0.015em] text-[#1d1d1f]">{service.title}</h3>
+          {showSummary ? <p className="mt-2 text-[14px] leading-relaxed text-[#6e6e73]">{service.summary}</p> : null}
+          <ul className="mt-5 space-y-2.5 text-[14px] text-[#424245]">
+            {service.bullets.slice(0, 4).map((bullet) => (
+              <li key={bullet} className="flex items-start gap-2.5">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1d1d1f]" strokeWidth={1.8} />
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => navigate(`/services/${service.id}`)} className="lg-link mt-auto self-start pt-7 text-[15px]">
+            {t('discoverServices.viewCategory', { defaultValue: 'View Service' })}
+            <ArrowIcon />
+          </button>
+        </div>
+      </article>
+    </RevealItem>
+  );
+
   return (
     <>
       <Header />
-      <nav className="mx-auto max-w-7xl px-6 py-4" aria-label="Service directory"><Link to="/services/india">India services</Link> · <Link to="/services/saudi-arabia">Saudi Arabia services</Link> · <Link to="/services/global">Global services</Link><ul className="flex flex-wrap gap-4">{services.map(service => <li key={service.id}><Link to={`/services/global/${service.id}`}>{service.title}</Link></li>)}</ul></nav>
-
-      {/* Top Brand Accent Line - Elegant fading gradient */}
-      <div className="h-[1.5px] bg-gradient-to-r from-transparent via-[#E52E38]/30 to-transparent w-full"></div>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow w-full font-geist" dir={isRtl ? 'rtl' : 'ltr'}>
-
-        {/* Hero title */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="inline-flex items-center gap-1.5 bg-red-50 text-[#E52E38] text-xs font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider mb-3">
-            {t('discoverServices.badge', { defaultValue: 'Services Directory' })}
-          </span>
-          <h1 className="text-4xl sm:text-5xl font-semibold text-slate-900 tracking-tight mb-4">
-            {t('discoverServices.title', { defaultValue: 'Discover Services' })}
-          </h1>
-          <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-            {t('discoverServices.description', { defaultValue: 'Connect with top-tier professionals for tailored financial planning, tax strategy, and investment consulting.' })}
-          </p>
-        </div>
-
-        {/* Search Bar */}
-        <div className="max-w-2xl mx-auto mb-16 px-2">
-          <div className="relative flex items-center bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5 focus-within:ring-2 focus-within:ring-[#DC2626]/20 focus-within:border-[#DC2626] transition-all">
-            <Search className={`w-5 h-5 text-slate-400 ${isRtl ? 'mr-3' : 'ml-3'} shrink-0`} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('discoverServices.searchPlaceholder', { defaultValue: 'Browse Services (e.g., Wealth Management, Tax Audit...)' })}
-              className={`w-full bg-transparent py-2.5 px-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none ${isRtl ? 'text-right' : 'text-left'}`}
-            />
-
-            {/* AI Voice Pill Button */}
-            <button
-              onClick={startVoiceAssistant}
-              className={`px-5 py-2 rounded-xl border border-[#E52E38]/80 text-[#E52E38] hover:bg-[#E52E38] hover:text-white font-bold text-xs transition-all flex items-center gap-2 shrink-0 shadow-sm group ${isRtl ? 'ml-1' : 'mr-1'}`}
-            >
-              <Mic className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-              <span>{t('discoverServices.aiVoice', { defaultValue: 'AI Voice' })}</span>
-            </button>
+      <main className="w-full flex-grow" dir={isRtl ? 'rtl' : 'ltr'}>
+        {/* Hero + search */}
+        <section className="relative -mt-16 overflow-hidden bg-[#f5f5f7] pt-36 pb-20">
+          <div className="lg-liquid-bg" aria-hidden="true">
+            <i className="is-grey" style={{ width: 600, height: 600, top: '-35%', insetInlineStart: '-10%' }} />
+            <i className="is-red" style={{ width: 480, height: 480, bottom: '-50%', insetInlineEnd: '5%' }} />
           </div>
-        </div>
+          <div className="lg-container relative text-center">
+            <Reveal>
+              <Eyebrow red center>{t('discoverServices.badge', { defaultValue: 'Services Directory' })}</Eyebrow>
+            </Reveal>
+            <SplitHeading as="h1" className="lg-display mx-auto mt-6 max-w-4xl !text-[clamp(40px,6vw,76px)]" animateOnMount>
+              {t('discoverServices.title', { defaultValue: 'Discover Services' })}
+            </SplitHeading>
+            <Reveal delay={0.12}>
+              <p className="lg-lead mx-auto mt-5 max-w-2xl">
+                {t('discoverServices.description', { defaultValue: 'Connect with top-tier professionals for tailored financial planning, tax strategy, and investment consulting.' })}
+              </p>
+            </Reveal>
 
-        {/* MAIN VIEW: Explore Categories + Trending */}
-        {!isShowingResults ? (
-          <div className="space-y-16 animate-in fade-in duration-300">
+            <Reveal delay={0.2}>
+              <Glass className="mx-auto mt-10 flex max-w-2xl items-center gap-2 !rounded-full p-1.5 ps-5 focus-within:shadow-[inset_0_1px_0_#fff,0_0_0_1px_rgba(0,0,0,.2),0_18px_50px_-24px_rgba(0,0,0,.3)]">
+                <Search className="h-[18px] w-[18px] shrink-0 text-[#86868b]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('discoverServices.searchPlaceholder', { defaultValue: 'Browse Services (e.g., Wealth Management, Tax Audit...)' })}
+                  aria-label={t('discoverServices.searchPlaceholder', { defaultValue: 'Search services' })}
+                  className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#1d1d1f] placeholder-[#86868b] focus:outline-none"
+                />
+                {searchQuery ? (
+                  <button onClick={() => setSearchQuery('')} className="grid h-8 w-8 place-items-center rounded-full text-[#86868b] hover:bg-black/[0.05]" aria-label="Clear search">
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+                <button onClick={startVoiceAssistant} className="lg-btn lg-btn-ink lg-btn-sm !min-h-[40px] shrink-0">
+                  <Mic className="h-3.5 w-3.5" />
+                  <span>{t('discoverServices.aiVoice', { defaultValue: 'AI Voice' })}</span>
+                </button>
+              </Glass>
+            </Reveal>
 
-            {/* Explore Categories Section */}
-            <section>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-1 h-6 bg-[#E52E38] rounded-full"></div>
-                <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">
-                  {t('discoverServices.exploreCategories', { defaultValue: 'Explore Categories' })}
-                </h2>
+            {/* category segmented control */}
+            <Reveal delay={0.28}>
+              <div className="mt-6 inline-flex flex-wrap justify-center gap-1 rounded-full bg-black/[0.05] p-1">
+                {['All', ...categories.map((c) => c.key)].map((key) => {
+                  const active = activeCategory === key && !searchQuery.trim();
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setSearchQuery('');
+                        handleCategorySelect(key);
+                      }}
+                      className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition-all ${active ? 'bg-white text-[#1d1d1f] shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'}`}
+                    >
+                      {key === 'All' ? t('discoverServices.all', { defaultValue: isRtl ? 'الكل' : 'All' }) : categoryLabel(key)}
+                    </button>
+                  );
+                })}
               </div>
+            </Reveal>
+          </div>
+        </section>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {categories.map((cat) => (
-                  <div
-                    key={cat.key}
-                    onClick={() => handleCategorySelect(cat.key)}
-                    className="group relative h-64 sm:h-72 rounded-3xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-                  >
-                    <img
-                      src={cat.image}
-                      alt={cat.title}
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/40 to-transparent group-hover:via-slate-950/50 transition-colors duration-300"></div>
-                    <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                      <h3 className="text-2xl sm:text-3xl font-semibold tracking-wider text-white uppercase drop-shadow-md group-hover:scale-105 transition-transform duration-300">
-                        {cat.title}
-                      </h3>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Trending Services Section */}
-            <section>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-1 h-6 bg-[#E52E38] rounded-full"></div>
-                <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">
-                  {t('discoverServices.trendingServices', { defaultValue: 'Trending Services' })}
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {trendingServices.map((service) => (
-                  <div
-                    key={service.id}
-                    className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between hover:-translate-y-1"
-                  >
-                    <div>
-                      <div className="relative h-48 overflow-hidden">
+        <div className="lg-container py-20">
+          {!isShowingResults ? (
+            <div className="space-y-24">
+              {/* Categories */}
+              <section>
+                <Reveal>
+                  <h2 className="lg-h2 !text-[clamp(28px,3.4vw,44px)]">
+                    {`${t('discoverServices.exploreCategories', { defaultValue: 'Explore Categories' })}. `}
+                    <span className="lg-muted-line">{isRtl ? 'اختر مجالك.' : 'Pick your field.'}</span>
+                  </h2>
+                </Reveal>
+                <RevealGroup className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {categories.map((cat) => (
+                    <RevealItem key={cat.key}>
+                      <button
+                        onClick={() => handleCategorySelect(cat.key)}
+                        className="group relative block h-80 w-full overflow-hidden rounded-[26px] text-start shadow-[0_0_0_1px_rgba(0,0,0,0.06)]"
+                      >
                         <img
-                          src={service.image}
-                          alt={service.title}
-                          className="w-full h-full object-cover"
+                          src={cat.image}
+                          alt={cat.title}
+                          className="absolute inset-0 h-full w-full object-cover grayscale-[90%] transition-all duration-[1.4s] ease-[cubic-bezier(.2,.7,.1,1)] group-hover:scale-105 group-hover:grayscale-0"
                           loading="lazy"
                         />
-                        <span className={`absolute top-3 ${isRtl ? 'left-3' : 'right-3'} bg-slate-900/80 text-white text-[10px] font-bold px-3 py-1 rounded-md shadow-sm uppercase tracking-wider`}>
-                          {service.id === 'cybersecurity-data-privacy' ? t('discoverServices.tags.tech', { defaultValue: 'Technology' }) : t('discoverServices.tags.finance', { defaultValue: 'Finance' })}
+                        <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                        <span
+                          className="absolute inset-x-4 bottom-4 flex items-center justify-between rounded-[20px] bg-white/15 px-5 py-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.35),0_0_0_1px_rgba(255,255,255,.2)]"
+                          style={{ WebkitBackdropFilter: 'blur(18px) saturate(1.6)', backdropFilter: 'blur(18px) saturate(1.6)' }}
+                        >
+                          <span className="text-[22px] font-semibold tracking-[-0.02em]">{cat.title}</span>
+                          <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#1d1d1f] transition-transform duration-500 group-hover:translate-x-1 rtl:group-hover:-translate-x-1">
+                            <ArrowIcon />
+                          </span>
                         </span>
-                      </div>
-                      <div className="p-6">
-                        <h3 className="text-lg font-semibold text-slate-900 mb-4">{service.title}</h3>
-                        <ul className="space-y-3 text-xs text-slate-600 font-medium">
-                          {service.bullets.slice(0, 4).map((bullet, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                              <span>{bullet}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    <div className="p-6 pt-0">
-                      <button
-                        onClick={() => navigate(`/services/${service.id}`)}
-                        className="w-full py-3 rounded-xl bg-slate-900 hover:bg-[#E52E38] text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-2 group"
-                      >
-                        <span>{t('discoverServices.viewCategory', { defaultValue: 'View Service' })}</span>
-                        <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRtl ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'}`} />
                       </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                    </RevealItem>
+                  ))}
+                </RevealGroup>
+              </section>
 
-          </div>
-        ) : (
-          /* CATEGORIES DRILLDOWN OR SEARCH RESULTS VIEW */
-          <div className="space-y-6 animate-in fade-in duration-300">
-
-            {/* Back Button Navigation */}
-            <button
-              onClick={handleBackToMain}
-              className={`inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-[#E52E38] transition-colors mb-2 group`}
-            >
-              <ChevronLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-0.5`} />
-              <span>{t('discoverServices.back', { defaultValue: 'Back' })}</span>
-            </button>
-
-            {/* Breadcrumb Title Header */}
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-1 h-6 bg-[#E52E38] rounded-full"></div>
-              <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">
+              {/* Trending */}
+              <section>
+                <Reveal>
+                  <h2 className="lg-h2 !text-[clamp(28px,3.4vw,44px)]">
+                    {`${t('discoverServices.trendingServices', { defaultValue: 'Trending Services' })}. `}
+                    <span className="lg-muted-line">{isRtl ? 'الأكثر طلبًا الآن.' : 'Most requested right now.'}</span>
+                  </h2>
+                </Reveal>
+                <RevealGroup className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {trendingServices.map((service) => (
+                    renderServiceCard({
+                      service,
+                      tag: service.id === 'cybersecurity-data-privacy' ? t('discoverServices.tags.tech', { defaultValue: 'Technology' }) : t('discoverServices.tags.finance', { defaultValue: 'Finance' }),
+                    })
+                  ))}
+                </RevealGroup>
+              </section>
+            </div>
+          ) : (
+            <div>
+              <button onClick={handleBackToMain} className="inline-flex items-center gap-1 text-[14px] text-[#6e6e73] transition-colors hover:text-[#1d1d1f]">
+                <ChevronLeft className="h-4 w-4 flipInRtl" />
+                <span>{t('discoverServices.back', { defaultValue: 'Back' })}</span>
+              </button>
+              <h2 className="lg-h2 mt-4 !text-[clamp(28px,3.4vw,44px)]">
                 {searchQuery.trim().length > 0
                   ? t('discoverServices.searchResults', { defaultValue: 'Search Results for: "{{query}}"' }).replace('{{query}}', searchQuery)
-                  : `${t('discoverServices.categoriesTitle', { defaultValue: 'Categories' })} > ${t(`discoverServices.categories.${activeCategory.toLowerCase()}`, { defaultValue: activeCategory })}`}
+                  : categoryLabel(activeCategory)}
+                <span className="lg-muted-line">{` · ${filteredServices.length}`}</span>
               </h2>
+
+              {filteredServices.length > 0 ? (
+                <RevealGroup key={`${activeCategory}-${searchQuery}`} className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredServices.map((service) => (
+                    renderServiceCard({ service, showSummary: true, tag: activeCategory !== 'All' ? categoryLabel(activeCategory) : 'BNC' })
+                  ))}
+                </RevealGroup>
+              ) : (
+                <div className="lg-tile mx-auto mt-10 max-w-xl px-6 py-16 text-center">
+                  <p className="text-[15px] text-[#6e6e73]">{t('discoverServices.noResults', { defaultValue: 'No services found matching your query.' })}</p>
+                  <button onClick={handleBackToMain} className="lg-btn lg-btn-ink mt-6">
+                    {t('discoverServices.resetSearch', { defaultValue: 'Clear Filter' })}
+                  </button>
+                </div>
+              )}
             </div>
+          )}
+        </div>
 
-            {/* Services Grid */}
-            {filteredServices.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {filteredServices.map((service) => (
-                  <div
-                    key={service.id}
-                    className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between hover:-translate-y-1"
-                  >
-                    <div>
-                      <div className="relative h-48 overflow-hidden bg-slate-100">
-                        <img
-                          src={service.image}
-                          alt={service.title}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                        <span className={`absolute top-3 ${isRtl ? 'left-3' : 'right-3'} bg-slate-900/80 text-white text-[10px] font-bold px-3 py-1 rounded-md shadow-sm uppercase tracking-wider`}>
-                          {activeCategory !== 'All' ? t(`discoverServices.categories.${activeCategory.toLowerCase()}`, { defaultValue: activeCategory }) : 'BNC'}
-                        </span>
-                      </div>
-                      <div className="p-6">
-                        <h3 className="text-lg font-semibold text-slate-900 mb-2">{service.title}</h3>
-                        <p className="text-xs text-slate-400 font-medium mb-4 leading-relaxed">{service.summary}</p>
-                        <ul className="space-y-3 text-xs text-slate-600 font-medium">
-                          {service.bullets.slice(0, 4).map((bullet, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                              <span>{bullet}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    <div className="p-6 pt-0">
-                      <button
-                        onClick={() => navigate(`/services/${service.id}`)}
-                        className="w-full py-3 rounded-xl bg-slate-900 hover:bg-[#E52E38] text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-2 group"
-                      >
-                        <span>{t('discoverServices.viewCategory', { defaultValue: 'View Service' })}</span>
-                        <ArrowRight className={`w-3.5 h-3.5 transition-transform ${isRtl ? 'rotate-180 group-hover:-translate-x-1' : 'group-hover:translate-x-1'}`} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+        {/* Full service directory (crawlable links) */}
+        <nav className="border-t border-black/[0.06] bg-[#f5f5f7]" aria-label="Service directory">
+          <div className="lg-container py-14">
+            <div className="flex flex-wrap items-baseline justify-between gap-4">
+              <h2 className="text-[21px] font-semibold tracking-[-0.018em] text-[#1d1d1f]">Service directory</h2>
+              <div className="flex gap-4 text-[13px]">
+                <Link to="/services/india" className="lg-link">India services</Link>
+                <Link to="/services/saudi-arabia" className="lg-link">Saudi Arabia services</Link>
+                <Link to="/services?view=country" className="lg-link">All countries</Link>
               </div>
-            ) : (
-              <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-xl mx-auto">
-                <p className="text-slate-400 font-medium text-sm mb-4">
-                  {t('discoverServices.noResults', { defaultValue: 'No services found matching your query.' })}
-                </p>
-                <button
-                  onClick={handleBackToMain}
-                  className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-[#E52E38] text-white font-bold text-xs transition-all"
-                >
-                  {t('discoverServices.resetSearch', { defaultValue: 'Clear Filter' })}
-                </button>
-              </div>
-            )}
+            </div>
+            <ul className="mt-8 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+              {services.map((service) => (
+                <li key={service.id}>
+                  <Link to={`/services/global/${service.id}`} className="text-[13px] text-[#6e6e73] transition-colors hover:text-[#1d1d1f]">
+                    {service.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
-        )}
-
+        </nav>
       </main>
 
-      {/* AI VOICE ASSISTANT MODAL */}
-      <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md transition-opacity duration-300 ${isVoiceModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className={`w-full max-w-sm bg-white rounded-3xl p-8 border border-slate-200 shadow-2xl relative text-center transform transition-transform duration-300 ${isVoiceModalOpen ? 'scale-100' : 'scale-95'}`}>
-
-          <button
-            onClick={closeVoiceAssistant}
-            className="absolute top-5 right-5 p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors"
-          >
-            <X className="w-5 h-5" />
+      {/* AI voice assistant */}
+      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-[6px] transition-opacity duration-300 ${isVoiceModalOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <Glass
+          className={`relative w-full max-w-sm !rounded-[30px] p-8 text-center transition-transform duration-300 ${isVoiceModalOpen ? 'scale-100' : 'scale-95'}`}
+          style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.9), rgba(245,245,247,0.8))' }}
+        >
+          <button onClick={closeVoiceAssistant} className="absolute end-4 top-4 grid h-9 w-9 place-items-center rounded-full text-[#6e6e73] transition-colors hover:bg-black/[0.05]" aria-label="Close voice assistant">
+            <X className="h-4 w-4" />
           </button>
 
-          {/* Pulsing Mic Icon */}
-          <div className="relative w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-            {isListening && (
-              <div className="absolute inset-0 rounded-full bg-[#E52E38]/20 animate-ping"></div>
-            )}
-            <div className="w-16 h-16 rounded-full bg-[#E52E38] text-white flex items-center justify-center shadow-lg shadow-[#E52E38]/30 relative z-10">
-              <Mic className="w-8 h-8" />
+          <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center">
+            {isListening && <div className="absolute inset-0 animate-ping rounded-full bg-[#dc2626]/20"></div>}
+            <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-[#1d1d1f] text-white shadow-[0_14px_30px_-10px_rgba(0,0,0,0.5)]">
+              <Mic className="h-7 w-7" />
             </div>
           </div>
 
-          {/* Voice Status Text */}
-          <h3 className="text-xl font-extrabold text-slate-900 mb-1">
+          <h3 className="text-[21px] font-semibold tracking-[-0.018em] text-[#1d1d1f]">
             {t('discoverServices.voice.modalTitle', { defaultValue: 'BNC AI Voice Assistant' })}
           </h3>
-          <p className="text-xs text-slate-500 mb-6 font-medium leading-relaxed">
-            {voiceStatus}
-          </p>
+          <p className="mt-1.5 mb-6 text-[14px] leading-relaxed text-[#6e6e73]">{voiceStatus}</p>
 
-          {/* Animated Soundwave Visualizer */}
           {isListening && (
-            <div className="flex items-center justify-center gap-1.5 h-12 mb-6">
-              <style dangerouslySetInnerHTML={{__html: `
-                @keyframes voiceWave {
-                  0%, 100% { height: 8px; }
-                  50% { height: 32px; }
-                }
-                .wave-bar-react {
-                  width: 4px;
-                  background-color: #E52E38;
-                  border-radius: 9999px;
-                  animation: voiceWave 1.2s ease-in-out infinite;
-                }
-                .w-bar-1 { animation-delay: 0.0s; }
-                .w-bar-2 { animation-delay: 0.2s; }
-                .w-bar-3 { animation-delay: 0.4s; }
-                .w-bar-4 { animation-delay: 0.1s; }
-                .w-bar-5 { animation-delay: 0.3s; }
+            <div className="mb-6 flex h-12 items-center justify-center gap-1.5">
+              <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes voiceWave { 0%, 100% { height: 8px; } 50% { height: 32px; } }
+                .wave-bar-react { width: 4px; background-color: #DC2626; border-radius: 9999px; animation: voiceWave 1.2s ease-in-out infinite; }
+                .w-bar-1 { animation-delay: 0.0s; } .w-bar-2 { animation-delay: 0.2s; } .w-bar-3 { animation-delay: 0.4s; }
+                .w-bar-4 { animation-delay: 0.1s; } .w-bar-5 { animation-delay: 0.3s; }
               `}} />
               <div className="wave-bar-react w-bar-1"></div>
               <div className="wave-bar-react w-bar-2"></div>
@@ -511,28 +508,21 @@ const DiscoverServices = () => {
             </div>
           )}
 
-          {/* Simulation Controls */}
-          <div className="space-y-2 mt-4">
-            <button
-              onClick={() => handleVoiceCommand(isRtl ? 'عرض خدمات الحوكمة البيئية' : 'Show ESG Services')}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
+          <div className="mt-4 space-y-2">
+            <button onClick={() => handleVoiceCommand(isRtl ? 'عرض خدمات الحوكمة البيئية' : 'Show ESG Services')} className="lg-btn lg-btn-outline lg-btn-sm w-full">
               {isRtl ? 'تجربة: "عرض خدمات الحوكمة البيئية"' : 'Try: "Show ESG Services"'}
             </button>
-            <button
-              onClick={() => handleVoiceCommand(isRtl ? 'البحث عن خدمات المدير المالي الافتراضي' : 'Find Virtual CFO')}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
+            <button onClick={() => handleVoiceCommand(isRtl ? 'البحث عن خدمات المدير المالي الافتراضي' : 'Find Virtual CFO')} className="lg-btn lg-btn-outline lg-btn-sm w-full">
               {isRtl ? 'تجربة: "البحث عن خدمات المدير المالي"' : 'Try: "Find Virtual CFO"'}
             </button>
           </div>
-        </div>
+        </Glass>
       </div>
 
-      {/* Toast Notification */}
-      <div className={`fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 transform transition-all duration-300 ${isToastVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
-        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-        <span className="text-xs font-bold">{toastMessage}</span>
+      {/* Toast */}
+      <div className={`lg-chip fixed bottom-6 end-6 z-50 !gap-3 !rounded-2xl !px-5 !py-3 transition-all duration-300 ${isToastVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-20 opacity-0'}`}>
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-[#1d1d1f]" />
+        <span className="text-[13px] font-medium text-[#1d1d1f]">{toastMessage}</span>
       </div>
 
       <Footer />

@@ -1,18 +1,15 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronDown,
   LayoutDashboard,
-  Store,
   Wallet,
   Calendar,
   User,
-  Search,
-  Mic,
   FileText,
-  Settings,
   RefreshCw,
   LogOut,
   Gift
@@ -26,14 +23,6 @@ const PROVIDER_OPTIONS = [
     icon: LayoutDashboard,
     iconBg: 'bg-blue-50',
     iconColor: 'text-blue-600'
-  },
-  {
-    key: 'services',
-    title: 'Listed Services',
-    description: 'Manage and publish consulting packages',
-    icon: Store,
-    iconBg: 'bg-indigo-50',
-    iconColor: 'text-indigo-600'
   },
   {
     key: 'ledger',
@@ -79,22 +68,6 @@ const CONSUMER_OPTIONS = [
     iconColor: 'text-blue-600'
   },
   {
-    key: 'directory',
-    title: 'Explore Directory',
-    description: 'Browse and book certified advisory experts',
-    icon: Search,
-    iconBg: 'bg-indigo-50',
-    iconColor: 'text-indigo-600'
-  },
-  {
-    key: 'ai-assistant',
-    title: 'AI Match Assistant',
-    description: 'Voice match project requirements instantly',
-    icon: Mic,
-    iconBg: 'bg-rose-50',
-    iconColor: 'text-rose-600'
-  },
-  {
     key: 'bookings',
     title: 'My Bookings',
     description: 'Manage scheduled meetings and expert calls',
@@ -111,14 +84,6 @@ const CONSUMER_OPTIONS = [
     iconColor: 'text-emerald-600'
   },
   {
-    key: 'settings',
-    title: 'Client Settings',
-    description: 'Organizational details and budget preferences',
-    icon: Settings,
-    iconBg: 'bg-purple-50',
-    iconColor: 'text-purple-600'
-  },
-  {
     key: 'profile',
     title: 'Profile Onboarding',
     description: 'Complete setup and partner agreement',
@@ -133,10 +98,22 @@ const CONSUMER_OPTIONS = [
     icon: Gift,
     iconBg: 'bg-red-50',
     iconColor: 'text-red-600'
+  },
+  {
+    key: 'referral-program',
+    title: 'Referral Program',
+    description: 'Invite partners and earn rewards',
+    icon: Gift,
+    iconBg: 'bg-red-50',
+    iconColor: 'text-red-600'
   }
 ];
 
-const Sidebar = lazy(() => import('./Sidebar'));
+import CountriesMenu from './CountriesMenu';
+import ServicesMenu from './ServicesMenu';
+
+const loadSidebar = () => import('./Sidebar');
+const Sidebar = lazy(loadSidebar);
 const PartnerFormModal = lazy(() => import('./PartnerFormModal'));
 const ExpertFormModal = lazy(() => import('./ExpertFormModal'));
 
@@ -151,6 +128,12 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
   const buttonLabel = (isDashboardPage && activeOption) ? activeOption.title : (role === 'provider' ? 'Provider' : 'Consumer');
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // preload the sidebar code once the page is idle, so the first open is instant
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+    const id = idle(() => { loadSidebar(); });
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExpertModalOpen, setIsExpertModalOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -166,14 +149,31 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
     }
   }, []);
 
+  // Shareable form links: /become-a-partner and /book-a-consultation open the
+  // forms as pop-ups (the older ?open=partner / ?open=expert links still work).
+  const navigate = useNavigate();
+  const FORM_PATHS = { partner: '/become-a-partner', expert: '/book-a-consultation' };
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get('open') === 'partner') {
+    if (params.get('open') === 'partner' || location.pathname === FORM_PATHS.partner) {
       setIsModalOpen(true);
-    } else if (params.get('open') === 'expert') {
+    } else if (params.get('open') === 'expert' || location.pathname === FORM_PATHS.expert) {
       setIsExpertModalOpen(true);
     }
-  }, [location.search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, location.pathname]);
+  // closing a form opened from its own link returns to the home page address
+  const closeForm = (setOpen) => {
+    setOpen(false);
+    if (Object.values(FORM_PATHS).includes(location.pathname)) {
+      navigate('/', { replace: true });
+    } else if (new URLSearchParams(location.search).has('open')) {
+      // drop only the form params, keep the page's own filters
+      const rest = new URLSearchParams(location.search);
+      rest.delete('open'); rest.delete('service');
+      navigate(`${location.pathname}${rest.toString() ? `?${rest}` : ''}`, { replace: true, preventScrollReset: true });
+    }
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -200,17 +200,14 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
       const sections = ['home', 'about', 'services', 'how-it-works', 'contact'];
       const scrollPosition = window.scrollY + 240; // offset
 
+      // The active item is the last section whose top has passed the marker, so
+      // sections without an id (in between) keep the previous item highlighted.
+      let current = 'home';
       for (const section of sections) {
         const el = document.getElementById(section);
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (scrollPosition >= top && scrollPosition < top + height) {
-            setActiveSection(section);
-            break;
-          }
-        }
+        if (el && el.offsetTop <= scrollPosition) current = section;
       }
+      setActiveSection(current);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -241,28 +238,48 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
     }
   };
   const isRtl = i18n.language === 'ar';
-  const headerPadding = isRtl ? 'pr-16 pl-4' : 'pl-16 pr-4';
-  const rightPadding = isRtl ? 'pr-2 ml-12' : 'pl-2 mr-12';
-  const rowDirection = isRtl ? 'flex-row-reverse' : 'flex-row';
-  const underlineAlign = isRtl ? 'right-0' : 'left-0';
+  const activeRole = currentRole || localStorage.getItem('dashboardRole') || 'provider';
+
+  // Provider dropdown is rendered in a portal (outside the blurred header) so its
+  // liquid-glass blur works; place it under its trigger, aligned to the end edge.
+  const providerRef = useRef(null);
+  const [providerPos, setProviderPos] = useState({ top: 76, right: 24 });
+  const placeProvider = () => {
+    const r = providerRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setProviderPos(isRtl ? { top: r.bottom, left: Math.max(16, r.left) } : { top: r.bottom, right: Math.max(16, window.innerWidth - r.right) });
+  };
+
+  const navItems = [
+    { id: 'home', to: '/', label: t('header.home'), active: isActiveNav('home'), onClick: (e) => handleNavClick(e, 'home') },
+    { id: 'about', to: '/about', label: t('header.about'), active: location.pathname.startsWith('/about') },
+    { id: 'services', to: '/services', label: t('header.services'), active: location.pathname.startsWith('/services') || location.pathname.startsWith('/country') },
+    { id: 'contact', to: '/#contact', label: t('header.contact'), active: isActiveNav('contact'), onClick: (e) => handleNavClick(e, 'contact') },
+  ];
+  const navLinkClass = (active) =>
+    `relative rounded-full px-4 py-2 text-[14px] transition-colors duration-300 ${active ? 'text-[#1d1d1f] font-medium' : 'text-[#424245] hover:text-[#1d1d1f]'}`;
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 bg-white/70 backdrop-blur-md border-b border-slate-100/50 z-40">
-        <div className={`w-full ${headerPadding}`}>
-          <div className={`flex items-center justify-between h-19 ${rowDirection}`}>
+      <header
+        className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-white/25 to-white/10 shadow-[inset_0_-1px_0_rgba(255,255,255,0.6),0_1px_0_rgba(0,0,0,0.04)]"
+        style={{ WebkitBackdropFilter: 'blur(22px) saturate(1.8)', backdropFilter: 'blur(22px) saturate(1.8)' }}
+      >
+        <div className={`w-full ${isRtl ? 'pr-16 pl-4' : 'pl-16 pr-4'}`}>
+          <div className="flex items-center justify-between h-19">
             {/* Left Section */}
-            <div className={`flex items-center gap-3 pr-0 ${isRtl ? 'flex-row-reverse' : ''}`}>
+            <div className="flex items-center gap-3 pr-0">
               {/* Sidebar Menu Button */}
               <button
-                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-650 hover:bg-slate-50 shadow-xs transition-all cursor-pointer flex items-center justify-center"
-                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                className="grid h-9 w-9 cursor-pointer place-items-center rounded-full text-[#1d1d1f] transition-colors duration-300 hover:bg-black/[0.06]"
+                // hover already opens it, so a click must not toggle it closed again
+                onClick={() => setIsSidebarOpen(true)}
                 onMouseEnter={() => setIsSidebarOpen(true)}
                 aria-label="Toggle sidebar"
                 aria-expanded={isSidebarOpen}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
               </button>
 
@@ -279,108 +296,61 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
               </Link>
             </div>
 
-            {/* Center Section */}
-            <div className="hidden md:flex flex-1 justify-center">
-              <nav className="flex items-center gap-6 whitespace-nowrap">
-                {/* Home */}
-                <Link
-                  to="/"
-                  onClick={(e) => handleNavClick(e, 'home')}
-                  className={`font-geist text-base relative transition-colors duration-300 ${isActiveNav('home') ? 'text-[#DC2626] font-semibold' : 'text-gray-700 hover:text-[#DC2626]'
-                    }`}
-                >
-                  {t('header.home')}
-                  <span
-                    className={`absolute bottom-0 ${underlineAlign} h-0.5 bg-[#DC2626] transition-all duration-300 ${isActiveNav('home') ? 'w-full' : 'w-0 group-hover:w-full'
-                      }`}
-                  ></span>
-                </Link>
+            {/* Center Section: navigation in a glass capsule */}
+            <nav className="hidden md:flex flex-1 justify-center">
+            <div className="lg-chip lg-slab-plate !gap-0 !p-1.5 !text-[14px]">
+              {navItems.map((item) => (
+                <React.Fragment key={item.id}>
+                {(() => {
+                  const pill = item.active ? (
+                    <motion.span
+                      layoutId="lg-nav-pill"
+                      className="lg-slab-active absolute inset-0 -z-10 rounded-full"
+                      transition={{ type: 'spring', stiffness: 260, damping: 17, mass: 0.9 }}
+                    />
+                  ) : null;
+                  return item.id === 'services' ? (
+                    <ServicesMenu linkClass={navLinkClass} active={item.active} pill={pill} />
+                  ) : (
+                    <Link to={item.to} onClick={item.onClick} className={navLinkClass(item.active)}>
+                      {pill}
+                      {item.label}
+                    </Link>
+                  );
+                })()}
+                {item.id === 'services' ? <CountriesMenu linkClass={navLinkClass} /> : null}
+                </React.Fragment>
+              ))}
 
-                {/* About */}
-                <Link
-                  to="/#about"
-                  onClick={(e) => handleNavClick(e, 'about')}
-                  className={`font-geist text-base relative transition-colors duration-300 ${isActiveNav('about') ? 'text-[#DC2626] font-semibold' : 'text-gray-700 hover:text-[#DC2626]'
-                    }`}
+              {isLoggedIn && (
+                <div
+                  ref={providerRef}
+                  className="relative inline-block"
+                  onMouseEnter={() => { placeProvider(); setIsDropdownOpen(true); }}
+                  onMouseLeave={() => setIsDropdownOpen(false)}
                 >
-                  {t('header.about')}
-                  <span
-                    className={`absolute bottom-0 ${underlineAlign} h-0.5 bg-[#DC2626] transition-all duration-300 ${isActiveNav('about') ? 'w-full' : 'w-0 group-hover:w-full'
-                      }`}
-                  ></span>
-                </Link>
-
-                {/* Services */}
-                <Link
-                  to="/services"
-                  className={`font-geist text-base relative transition-colors duration-300 ${location.pathname.startsWith('/services') ? 'text-[#DC2626] font-semibold' : 'text-gray-700 hover:text-[#DC2626]'
-                    }`}
-                >
-                  {t('header.services')}
-                  <span
-                    className={`absolute bottom-0 ${underlineAlign} h-0.5 bg-[#DC2626] transition-all duration-300 ${location.pathname.startsWith('/services') ? 'w-full' : 'w-0'
-                      }`}
-                  ></span>
-                </Link>
-
-                {/* How It Works */}
-                <Link
-                  to="/#how-it-works"
-                  onClick={(e) => handleNavClick(e, 'how-it-works')}
-                  className={`font-geist text-base relative transition-colors duration-300 ${isActiveNav('how-it-works') ? 'text-[#DC2626] font-semibold' : 'text-gray-700 hover:text-[#DC2626]'
-                    }`}
-                >
-                  {t('header.howItWorks')}
-                  <span
-                    className={`absolute bottom-0 ${underlineAlign} h-0.5 bg-[#DC2626] transition-all duration-300 ${isActiveNav('how-it-works') ? 'w-full' : 'w-0 group-hover:w-full'
-                      }`}
-                  ></span>
-                </Link>
-
-                {/* Contact */}
-                <Link
-                  to="/#contact"
-                  onClick={(e) => handleNavClick(e, 'contact')}
-                  className={`font-geist text-base relative transition-colors duration-300 ${isActiveNav('contact') ? 'text-[#DC2626] font-semibold' : 'text-gray-700 hover:text-[#DC2626]'
-                    }`}
-                >
-                  {t('header.contact')}
-                  <span
-                    className={`absolute bottom-0 ${underlineAlign} h-0.5 bg-[#DC2626] transition-all duration-300 ${isActiveNav('contact') ? 'w-full' : 'w-0 group-hover:w-full'
-                      }`}
-                  ></span>
-                </Link>
-
-                {/* Logged In Dashboard Dropdown */}
-                {isLoggedIn && (
-                  <div
-                    className="relative inline-block text-left"
-                    onMouseEnter={() => setIsDropdownOpen(true)}
-                    onMouseLeave={() => setIsDropdownOpen(false)}
+                  <button
+                    className="flex cursor-pointer items-center gap-1 rounded-full px-4 py-2 text-[14px] text-[#424245] transition-colors hover:text-[#1d1d1f] focus:outline-none"
+                    onClick={() => { placeProvider(); setIsDropdownOpen(!isDropdownOpen); }}
                   >
-                    {/* Trigger Button */}
-                    <button
-                      className="font-geist text-base relative transition-colors duration-300 text-gray-700 hover:text-[#DC2626] font-medium flex items-center gap-1.5 cursor-pointer py-1 focus:outline-none"
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    >
-                      <span>{buttonLabel}</span>
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-[#DC2626]' : 'text-slate-500'}`} />
-                      <span className="absolute bottom-0 left-0 w-0 group-hover:w-full h-0.5 bg-[#DC2626] transition-all duration-300"></span>
-                    </button>
+                    <span>{buttonLabel}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-                    {/* Dropdown Box Menu */}
-                    <AnimatePresence>
-                      {isDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.15, ease: "easeOut" }}
-                          className="absolute right-0 top-full mt-2 w-[480px] bg-white border border-slate-200/80 rounded-3xl shadow-2xl p-6 z-50 pointer-events-auto"
-                        >
-                          {/* 2-Column Options Grid */}
-                          <div className="grid grid-cols-2 gap-4">
-                            {((currentRole || localStorage.getItem('dashboardRole') || 'provider') === 'provider' ? PROVIDER_OPTIONS : CONSUMER_OPTIONS).map((opt) => (
+                  {createPortal(
+                  <AnimatePresence>
+                    {isDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                        transition={{ duration: 0.22, ease: [0.2, 0.7, 0.1, 1] }}
+                        className="fixed z-[60] pt-3"
+                        style={providerPos}
+                      >
+                        <div className="lg-menu-glass w-[460px] rounded-[26px] p-3">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {(activeRole === 'provider' ? PROVIDER_OPTIONS : CONSUMER_OPTIONS).map((opt) => (
                               <button
                                 key={opt.key}
                                 onClick={() => {
@@ -388,7 +358,7 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
                                     window.location.href = '/referral-program';
                                     return;
                                   }
-                                  localStorage.setItem('dashboardRole', currentRole || localStorage.getItem('dashboardRole') || 'provider');
+                                  localStorage.setItem('dashboardRole', activeRole);
                                   localStorage.setItem('activeDashboardTab', opt.key);
                                   if (isDashboardPage && handleTabChange) {
                                     handleTabChange(opt.key);
@@ -396,24 +366,23 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
                                     window.location.href = '/dashboard';
                                   }
                                 }}
-                                className="group/item flex items-center gap-3.5 p-4 rounded-2xl bg-gray-50 border border-slate-200/50 hover:bg-white hover:border-[#E52E38] transition-all w-full cursor-pointer text-left font-sans shadow-sm"
+                                className={`group/item flex w-full cursor-pointer items-start gap-3 rounded-2xl p-3 transition-colors hover:bg-white/75 ${isRtl ? 'text-right' : 'text-left'}`}
                               >
-                                {/* Black professional icon with no background container */}
-                                <opt.icon className="w-5 h-5 text-slate-800 group-hover/item:text-[#E52E38] transition-colors shrink-0" />
-
-                                <span className="font-semibold text-slate-800 text-sm group-hover/item:text-[#E52E38] transition-colors leading-none">
-                                  {opt.title}
+                                <span className="lg-icon !h-9 !w-9 !rounded-xl group-hover/item:!bg-[#1d1d1f] group-hover/item:!text-white">
+                                  <opt.icon className="h-4 w-4" />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-[13.5px] font-medium leading-tight text-[#1d1d1f]">{opt.title}</span>
+                                  <span className="mt-0.5 block text-[12px] leading-snug text-[#86868b]">{opt.description}</span>
                                 </span>
                               </button>
                             ))}
                           </div>
 
-                          {/* Footer controls: Switch Role Toggle Switch */}
-                          <div className="mt-6 pt-4 border-t border-slate-150 flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-550 font-sans">
-                              {(currentRole || localStorage.getItem('dashboardRole') || 'provider') === 'provider' ? 'Switch to Consumer' : 'Switch to Provider'}
+                          <div className="mx-2 mt-2 flex items-center justify-between border-t border-black/[0.06] pt-3 pb-1">
+                            <span className="text-[12.5px] text-[#6e6e73]">
+                              {activeRole === 'provider' ? 'Switch to Consumer' : 'Switch to Provider'}
                             </span>
-
                             <button
                               onClick={() => {
                                 if (onRoleSwitch) {
@@ -425,89 +394,83 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
                                   window.location.href = '/dashboard';
                                 }
                               }}
-                              className={`relative w-11 h-6 rounded-full transition-colors duration-250 cursor-pointer focus:outline-none flex items-center ${(currentRole || localStorage.getItem('dashboardRole') || 'provider') === 'provider'
-                                  ? 'bg-slate-300'
-                                  : 'bg-[#E52E38]'
-                                }`}
+                              aria-label="Switch dashboard role"
+                              className={`relative flex h-[26px] w-[44px] cursor-pointer items-center rounded-full transition-colors duration-300 focus:outline-none ${activeRole === 'provider' ? 'bg-[#d2d2d7]' : 'bg-[#1d1d1f]'}`}
                             >
-                              <span
-                                className={`absolute left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-250 ${(currentRole || localStorage.getItem('dashboardRole') || 'provider') === 'provider'
-                                    ? 'translate-x-0'
-                                    : 'translate-x-5'
-                                  }`}
-                              />
+                              <span className={`absolute left-[3px] h-5 w-5 rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform duration-300 ${activeRole === 'provider' ? 'translate-x-0' : 'translate-x-[18px]'}`} />
                             </button>
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
-              </nav>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>,
+                  document.body,
+                  )}
+                </div>
+              )}
             </div>
+          </nav>
 
-            {/* Right Section - Restored Dashboard & Logout buttons */}
-            <div className={`flex items-center gap-3 ${rightPadding}`}>
-              <div className="flex items-center gap-3">
-                <Link
-                  to={isLoggedIn ? "/dashboard" : "/login"}
-                  onClick={(e) => {
-                    if (isLoggedIn && isDashboardPage && handleTabChange) {
-                      e.preventDefault();
-                      handleTabChange('overview');
-                    } else if (isLoggedIn) {
-                      localStorage.setItem('activeDashboardTab', 'overview');
-                    }
-                  }}
-                  className="hidden md:inline-block bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 px-4 py-2 rounded-lg font-poppins font-medium text-sm transition-all shadow-sm"
-                >
-                  {t('header.dashboard')}
-                </Link>
-                {isLoggedIn ? (
-                  <div
-                    className="relative hidden md:inline-block"
-                    onMouseEnter={() => setIsUserDropdownOpen(true)}
-                    onMouseLeave={() => setIsUserDropdownOpen(false)}
-                  >
-                    <div className="flex items-center gap-2 bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 px-3 py-1.5 rounded-lg font-poppins font-medium text-sm cursor-pointer transition-all shadow-sm">
-                      <div className="w-6 h-6 rounded-full bg-[#0F2A4A] flex items-center justify-center text-xs font-bold text-white shadow-inner">
-                        {(user?.firstName?.[0] || user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
-                      </div>
-                      <span className="max-w-[120px] truncate">{user?.firstName || user?.name || user?.email?.split('@')[0]}</span>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 text-slate-400 ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
-                    </div>
-                    
-                    <AnimatePresence>
-                      {isUserDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 5 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200/80 rounded-xl shadow-lg py-2 z-50 pointer-events-auto"
-                        >
-                          <button
-                            onClick={handleLogout}
-                            className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-medium text-sm flex items-center gap-2 transition-colors cursor-pointer"
-                          >
-                            <LogOut className="w-4 h-4" />
-                            {t('header.logout')}
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+            {/* Right Section: dashboard + account */}
+            <div className={`flex items-center gap-3 ${isRtl ? 'pr-2 ml-12' : 'pl-2 mr-12'}`}>
+            <Link
+              to={isLoggedIn ? '/dashboard' : '/login'}
+              onClick={(e) => {
+                if (isLoggedIn && isDashboardPage && handleTabChange) {
+                  e.preventDefault();
+                  handleTabChange('overview');
+                } else if (isLoggedIn) {
+                  localStorage.setItem('activeDashboardTab', 'overview');
+                }
+              }}
+              className="lg-btn lg-btn-sm lg-slab lg-btn-grow hidden md:inline-flex !text-[#1d1d1f] !min-h-[42px] !px-5 !text-[14px]"
+            >
+              {t('header.dashboard')}
+            </Link>
+            {isLoggedIn ? (
+              <div
+                className="relative hidden md:inline-block"
+                onMouseEnter={() => setIsUserDropdownOpen(true)}
+                onMouseLeave={() => setIsUserDropdownOpen(false)}
+              >
+                <div className="flex cursor-pointer items-center gap-2 rounded-full py-1 ps-1 pe-3 transition-colors hover:bg-black/[0.04]">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-[#1d1d1f] text-[12px] font-semibold text-white">
+                    {(user?.firstName?.[0] || user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
                   </div>
-                ) : (
-                  <Link to="/login" className="hidden md:inline-block bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 px-4 py-2 rounded-lg font-poppins font-medium text-sm transition-all shadow-sm">
-                    {t('header.login')}
-                  </Link>
-                )}
+                  <span className="max-w-[120px] truncate text-[13.5px] text-[#1d1d1f]">{user?.firstName || user?.name || user?.email?.split('@')[0]}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-[#86868b] transition-transform duration-300 ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+
+                <AnimatePresence>
+                  {isUserDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 6 }}
+                      transition={{ duration: 0.18 }}
+                      className={`absolute top-full z-50 pt-2 ${isRtl ? 'left-0' : 'right-0'}`}
+                    >
+                      <div className="w-52 rounded-2xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_20px_44px_-20px_rgba(0,0,0,0.3)]">
+                        <button
+                          onClick={handleLogout}
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-[13.5px] font-medium text-[#dc2626] transition-colors hover:bg-[#f5f5f7]"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          {t('header.logout')}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
+            ) : (
+              <Link to="/login" className="lg-btn lg-btn-sm lg-slab-ink lg-btn-grow hidden md:inline-flex !min-h-[42px] !px-5 !text-[14px]">
+                {t('header.login')}
+              </Link>
+            )}
           </div>
         </div>
-        {/* Top Brand Accent Line - Elegant fading gradient */}
-        <div className="h-[1.5px] bg-gradient-to-r from-transparent via-[#DC2626]/40 to-transparent w-full"></div>
+        </div>
       </header>
 
       {/* Spacer for fixed header */}
@@ -526,12 +489,12 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
       ) : null}
       {isModalOpen ? (
         <Suspense fallback={null}>
-          <PartnerFormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+          <PartnerFormModal isOpen={isModalOpen} onClose={() => closeForm(setIsModalOpen)} />
         </Suspense>
       ) : null}
       {isExpertModalOpen ? (
         <Suspense fallback={null}>
-          <ExpertFormModal isOpen={isExpertModalOpen} onClose={() => setIsExpertModalOpen(false)} />
+          <ExpertFormModal isOpen={isExpertModalOpen} presetFramework={new URLSearchParams(location.search).get('service') || ''} onClose={() => closeForm(setIsExpertModalOpen)} />
         </Suspense>
       ) : null}
     </>

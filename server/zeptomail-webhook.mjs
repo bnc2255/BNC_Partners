@@ -8,7 +8,15 @@ const iso = value => {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 };
 const toList = value => Array.isArray(value) ? value : value ? [value] : [];
-const statusFor = value => ({ delivered: 'delivered', emaildelivered: 'delivered', softbounce: 'soft_bounce', hardbounce: 'hard_bounce', feedbackloop: 'complained', fblcomplaint: 'complained' })[String(value || '').toLowerCase().replace(/[^a-z]/g, '')];
+// ZeptoMail event names -> stored status. Opens and clicks need "Track opens / clicks" on in ZeptoMail.
+const statusFor = value => ({
+  delivered: 'delivered', emaildelivered: 'delivered',
+  softbounce: 'soft_bounce', hardbounce: 'hard_bounce',
+  feedbackloop: 'complained', fblcomplaint: 'complained',
+  emailopen: 'opened', open: 'opened', opened: 'opened',
+  emaillinkclick: 'clicked', linkclick: 'clicked', click: 'clicked', clicked: 'clicked',
+})[String(value || '').toLowerCase().replace(/[^a-z]/g, '')];
+const DEFAULT_DETAIL = { delivered: 'Accepted by recipient mail server.', opened: 'Email opened.', clicked: 'Link clicked.' };
 
 export async function verifyZeptoSignature(header, payload, secret, now = Date.now()) {
   try {
@@ -38,7 +46,7 @@ export function parseZeptoEvents(payload, fallbackKey, receivedAt = new Date().t
               p_event_key: `${envelope.webhook_request_id || fallbackKey}:${events.length}:${String(recipient).toLowerCase()}`.slice(0, 500),
               p_status: status,
               p_occurred_at: iso(detail.time || detail.modified_time || message.time) || receivedAt,
-              p_detail: String(detail.reason || detail.diagnostic_message || (status === 'delivered' ? 'Accepted by recipient mail server.' : status.replaceAll('_', ' '))).slice(0, 1000),
+              p_detail: String(detail.reason || detail.diagnostic_message || detail.clicked_link || detail.link || DEFAULT_DETAIL[status] || status.replaceAll('_', ' ')).slice(0, 1000),
               p_email_reference: info.email_reference || null,
             });
           }
@@ -47,6 +55,42 @@ export function parseZeptoEvents(payload, fallbackKey, receivedAt = new Date().t
     }
   }
   return events;
+}
+
+// open/click on a partner email -> crm_follow_up_email_events (status is not changed).
+// Returns true (saved), false (no matching email) or null (database error).
+async function recordEngagement(db, e) {
+  let query = db.from('crm_follow_up_emails').select('id, recipient_email');
+  query = e.p_draft_id ? query.eq('draft_id', e.p_draft_id) : query.eq('provider_request_id', e.p_request_id || '-');
+  const { data: rows, error } = await query.limit(1);
+  if (error) return null;
+  const row = rows?.[0];
+  if (!row || String(row.recipient_email).toLowerCase() !== e.p_recipient) return false;
+  const { error: insertError } = await db.from('crm_follow_up_email_events').upsert(
+    { email_id: row.id, event_key: e.p_event_key, event_name: e.p_status, occurred_at: e.p_occurred_at, detail: e.p_detail },
+    { onConflict: 'event_key', ignoreDuplicates: true });
+  return insertError ? null : true;
+}
+
+// any event on a campaign email -> crm_email_events, which campaign condition steps read.
+// Hard bounces and spam complaints also add the address to crm_suppressions.
+const CAMPAIGN_EVENT = { delivered: 'delivered', opened: 'open', clicked: 'click', soft_bounce: 'bounce', hard_bounce: 'bounce', complained: 'spamreport' };
+async function recordCampaignEvent(db, e) {
+  if (!e.p_draft_id) return false;
+  const { data: rows, error } = await db.from('crm_email_sends').select('id, enrollment_id, lead_id').eq('id', e.p_draft_id).limit(1);
+  if (error) return null;
+  const send = rows?.[0];
+  if (!send) return false;
+  const { error: insertError } = await db.from('crm_email_events').upsert({
+    send_id: send.id, enrollment_id: send.enrollment_id, sg_message_id: e.p_request_id || send.id,
+    event_type: CAMPAIGN_EVENT[e.p_status] || e.p_status, url: e.p_status === 'clicked' ? e.p_detail : null,
+    occurred_at: e.p_occurred_at, raw: { provider: 'zeptomail', status: e.p_status, detail: e.p_detail },
+  }, { onConflict: 'sg_message_id,event_type,occurred_at', ignoreDuplicates: true });
+  if (insertError) return null;
+  if (e.p_status === 'hard_bounce' || e.p_status === 'complained') {
+    await db.from('crm_suppressions').upsert({ email: e.p_recipient, lead_id: send.lead_id, reason: e.p_status === 'complained' ? 'spam' : 'bounce' }, { onConflict: 'email', ignoreDuplicates: true });
+  }
+  return true;
 }
 
 export async function zeptoMailWebhook(request, env, dependencies = {}) {
@@ -77,9 +121,21 @@ export async function zeptoMailWebhook(request, env, dependencies = {}) {
     const db = dependencies.db || createClient(url, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     let recorded = 0;
     for (const event of events) {
-      const { data, error } = await db.rpc('crm_follow_up_record_email_event', event);
-      if (error) return json({ error: 'Could not save delivery event. Please retry.' }, 503);
-      if (data) recorded++;
+      // opens/clicks: saved straight into the events table (the existing database function
+      // only accepts delivery and bounce, and is left unchanged)
+      if (event.p_status === 'opened' || event.p_status === 'clicked') {
+        const saved = await recordEngagement(db, event);
+        if (saved === null) return json({ error: 'Could not save delivery event. Please retry.' }, 503);
+        if (saved) { recorded++; continue; }
+      } else {
+        const { data, error } = await db.rpc('crm_follow_up_record_email_event', event);
+        if (error) return json({ error: 'Could not save delivery event. Please retry.' }, 503);
+        if (data) { recorded++; continue; }
+      }
+      // not a partner email: maybe a campaign email (client_reference = crm_email_sends.id)
+      const campaign = await recordCampaignEvent(db, event);
+      if (campaign === null) return json({ error: 'Could not save delivery event. Please retry.' }, 503);
+      if (campaign) recorded++;
     }
     return json({ ok: true, recorded });
   } catch { return json({ error: 'Could not process delivery webhook.' }, 500); }

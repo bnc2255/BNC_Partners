@@ -11,7 +11,7 @@ const ServiceDetailsModal = ({ isOpen, onClose, serviceData }) => {
         <div className="bg-gradient-to-r from-[#DC2626] to-[#000000] px-6 py-4 text-white">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-[#DC2626]xl font-bold text-white">Service Details</h2>
+              <h2 className="text-2xl font-bold text-white">Service Details</h2>
               <p className="text-red-100 text-sm">Professional service information</p>
             </div>
             <button
@@ -91,7 +91,7 @@ const ServiceDetailsModal = ({ isOpen, onClose, serviceData }) => {
         ) : (
           <div className="text-center py-12">
             <div className="bg-red-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <span className="text-[#DC2626]xl text-[#DC2626]">📋</span>
+              <span className="text-2xl text-[#DC2626]">📋</span>
             </div>
             <p className="text-gray-500 text-lg">No service details available. Please complete your AI Profile first.</p>
           </div>

@@ -60,7 +60,7 @@ const PartnerModal = ({ isOpen, onClose }) => {
         
         <div className="relative inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle bg-white bg-opacity-95 backdrop-blur-sm shadow-xl rounded-2xl z-10">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[#DC2626]xl font-bold text-gray-800">
+            <h2 className="text-2xl font-bold text-gray-800">
               Become a <span style={{color: '#DC2626'}}>Partner</span>
             </h2>
             <button

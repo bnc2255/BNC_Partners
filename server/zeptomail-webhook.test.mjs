@@ -24,7 +24,10 @@ test('normalises delivery and bounce events to the stored recipient and client r
   assert.equal(event.p_recipient, 'partner@example.com');
   assert.equal(event.p_occurred_at, '2026-11-16T10:00:00.000Z');
   assert.equal(parseZeptoEvents({ ...payload, event_name: ['hardbounce'] }, 'fallback')[0].p_status, 'hard_bounce');
-  assert.deepEqual(parseZeptoEvents({ ...payload, event_name: ['email_open'], event_message: [{ ...payload.event_message[0], event_data: [{ object: 'email_open', details: {} }] }] }, 'fallback'), []);
+  const openEvent = { ...payload, event_name: ['email_open'], event_message: [{ ...payload.event_message[0], event_data: [{ object: 'email_open', details: {} }] }] };
+  assert.equal(parseZeptoEvents(openEvent, 'fallback')[0].p_status, 'opened');
+  assert.equal(parseZeptoEvents({ ...openEvent, event_name: ['email_link_click'] }, 'fallback')[0].p_status, 'clicked');
+  assert.deepEqual(parseZeptoEvents({ ...openEvent, event_name: ['something_else'], event_message: [{ ...payload.event_message[0], event_data: [{ object: 'unknown', details: {} }] }] }, 'fallback'), []);
 });
 test('accepts signed form payloads, rejects unsigned events, and returns retriable errors on storage failures', async () => {
   const text = JSON.stringify(payload);
@@ -39,4 +42,20 @@ test('accepts signed form payloads, rejects unsigned events, and returns retriab
   assert.equal((await response.json()).recorded, 1);
   assert.equal(calls[0].args.p_request_id, 'provider-1');
   assert.equal((await zeptoMailWebhook(await request(true), env, { db: { rpc: async () => ({ error: new Error('DB down') }) } })).status, 503);
+});
+
+test('saves opens straight into the events table and campaign events into crm_email_events', async () => {
+  const env = { ZOHO_WEBHOOK_AUTH_KEY: secret, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'server-key' };
+  const writes = [];
+  const table = (name, rows) => { const q = { select: () => q, eq: () => q, limit: async () => ({ data: rows, error: null }), upsert: async (row) => { writes.push({ name, row }); return { error: null }; } }; return q; };
+  const open = { ...payload, event_name: ['email_open'], event_message: [{ ...payload.event_message[0], event_data: [{ object: 'email_open', details: [{ time: '2026-11-16T11:00:00Z' }] }] }] };
+  const send = async (deps) => zeptoMailWebhook(new Request('https://example.com/api/zeptomail-webhook', { method: 'POST', headers: { 'producer-signature': await signature(JSON.stringify(open)) }, body: JSON.stringify(open) }), env, deps);
+  const rpc = async () => { throw new Error('rpc must not be called for opens'); };
+  let res = await send({ db: { rpc, from: (n) => table(n, n === 'crm_follow_up_emails' ? [{ id: 7, recipient_email: 'partner@example.com' }] : []) } });
+  assert.equal(res.status, 200);
+  assert.deepEqual(writes.map((w) => [w.name, w.row.event_name, w.row.email_id]), [['crm_follow_up_email_events', 'opened', 7]]);
+  writes.length = 0;
+  res = await send({ db: { rpc, from: (n) => table(n, n === 'crm_email_sends' ? [{ id: draftId, enrollment_id: 'en-1', lead_id: 'lead-1' }] : []) } });
+  assert.equal(res.status, 200);
+  assert.deepEqual(writes.map((w) => [w.name, w.row.event_type, w.row.send_id]), [['crm_email_events', 'open', draftId]]);
 });
