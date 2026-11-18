@@ -217,7 +217,7 @@ const Login = () => {
       <main className="relative flex min-h-[100svh] w-full items-center justify-center px-5 pb-10 pt-20 sm:p-12 sm:pt-24 md:min-h-screen md:w-[54%] md:p-16">
         {/* logo: top-right corner of the sign-in area */}
         <Link to="/" className="absolute end-5 top-5 inline-flex items-center sm:end-8 sm:top-8 md:end-10 md:top-10" aria-label="BNC LEG home">
-          <img src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png" alt="BNC LEG" className="h-9 w-auto object-contain md:h-10" />
+          <img src="/Photas/bnc-leg-logo.webp" width="640" height="199" alt="BNC LEG" className="h-9 w-auto object-contain md:h-10" />
         </Link>
         <div className="w-full max-w-[400px]">
           <span className="lg-chip !py-1.5 !text-[12px]">

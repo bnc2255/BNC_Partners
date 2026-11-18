@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from
 import Header from './Component/Header';
 import Footer from './Component/Footer';
 import Home from './pages/Home';
-import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
+import { RouteLoader, BootReady } from './components/ui/LegLoader';
 import SiteSEO from './seo/SiteSEO';
 import NotFound from './pages/NotFound';
 import LiquidEffects from './components/ui/LiquidEffects';
@@ -68,21 +68,31 @@ const AuthRecoveryRedirect = () => {
 
     checkHash();
 
-    if (!isSupabaseConfigured) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      const hash = window.location.hash || '';
-      const search = window.location.search || '';
-      if (
-        event === 'PASSWORD_RECOVERY' ||
-        (event === 'SIGNED_IN' && (hash.includes('type=recovery') || search.includes('type=recovery')))
-      ) {
-        if (location.pathname !== '/reset-password') {
-          navigate('/reset-password', { replace: true });
+    // The Supabase client is only needed when the URL carries auth tokens (password
+    // recovery / magic links). Loading it on demand keeps it out of the main bundle.
+    const authUrl = (window.location.hash || '') + (window.location.search || '');
+    if (!/access_token|refresh_token|type=recovery|otp_expired|access_denied|[?&]code=/.test(authUrl)) return undefined;
+
+    let cancelled = false;
+    let subscription;
+    import('./lib/supabaseClient').then(({ supabase, isSupabaseConfigured }) => {
+      if (cancelled || !isSupabaseConfigured) return;
+      ({ data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        const hash = window.location.hash || '';
+        const search = window.location.search || '';
+        if (
+          event === 'PASSWORD_RECOVERY' ||
+          (event === 'SIGNED_IN' && (hash.includes('type=recovery') || search.includes('type=recovery')))
+        ) {
+          if (location.pathname !== '/reset-password') {
+            navigate('/reset-password', { replace: true });
+          }
         }
-      }
-    });
+      }));
+    }).catch(() => {});
 
     return () => {
+      cancelled = true;
       subscription?.unsubscribe();
     };
   }, [navigate, location]);
@@ -107,10 +117,15 @@ function App() {
     return () => ('cancelIdleCallback' in window ? window.cancelIdleCallback(id) : window.clearTimeout(id));
   }, []);
 
-  const routeFallback = <div className="min-h-[40vh] bg-white" aria-hidden="true" />;
+  const routeFallback = <RouteLoader />;
 
   return (
-    <Router basename={window.location.pathname === "/ar" || window.location.pathname.startsWith("/ar/") ? "/ar" : "/"}>
+    // Page changes are not wrapped in a React transition, so a page whose code is still
+    // downloading shows the LEG loader (Suspense fallback) instead of freezing on the old page.
+    <Router
+      basename={window.location.pathname === "/ar" || window.location.pathname.startsWith("/ar/") ? "/ar" : "/"}
+      unstable_useTransitions={false}
+    >
       <ScrollToTop />
       <LiquidEffects />
       <SiteSEO />
@@ -160,6 +175,7 @@ function App() {
               </>
             } />
           </Routes>
+          <BootReady />
         </Suspense>
       </div>
     </Router>

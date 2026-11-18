@@ -75,7 +75,10 @@ const AboutPlatform = () => {
             ) : (
               <button type="button" className="group absolute inset-0 h-full w-full cursor-pointer" onClick={() => setPlaying(true)} aria-label="Play the platform overview video">
                 <img
-                  src={`https://img.youtube.com/vi/${VIDEO_ID}/maxresdefault.jpg`}
+                  src={`https://i.ytimg.com/vi_webp/${VIDEO_ID}/maxresdefault.webp`}
+                  width="1280"
+                  height="720"
+                  decoding="async"
                   alt="About BNC Platform"
                   className="h-full w-full object-cover transition-transform duration-[1.4s] ease-[cubic-bezier(.2,.7,.1,1)] group-hover:scale-[1.03]"
                   loading="lazy"

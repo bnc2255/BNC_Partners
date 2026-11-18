@@ -68,7 +68,7 @@ const Sidebar = ({ isOpen, onClose, isLoggedIn, user, onLogout }) => {
         >
           {/* top bar */}
           <motion.div variants={item} className="flex items-center justify-between px-6 pt-6">
-            <img src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png" alt="BNC LEG" className="h-8 w-auto object-contain" decoding="async" />
+            <img src="/Photas/bnc-leg-logo.webp" width="640" height="199" alt="BNC LEG" className="h-8 w-auto object-contain" decoding="async" />
             <div className="flex items-center gap-2">
               <div className="flex rounded-full bg-black/[0.05] p-0.5">
                 {languageOptions.map((option) => (

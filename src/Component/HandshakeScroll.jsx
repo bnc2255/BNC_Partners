@@ -108,13 +108,28 @@ export default function HandshakeScroll() {
     if (video.readyState >= 1) onMeta();
 
     // Only play while the section is on screen.
+    let visible = false;
     const io = new IntersectionObserver((entries) => {
       const e = entries[entries.length - 1]; // newest state
+      visible = e.isIntersecting;
       if (reduce) return;
       if (e.isIntersecting) video.play().catch(() => {});
       else video.pause();
     }, { threshold: 0.15 });
     io.observe(box);
+
+    // The 1.8 MB video is far down the page: start downloading it only when the
+    // visitor scrolls near it, instead of competing with the hero on first load.
+    const onCanPlay = () => { if (visible && !reduce) video.play().catch(() => {}); };
+    const near = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      near.disconnect();
+      video.addEventListener('canplay', onCanPlay, { once: true });
+      video.preload = 'auto';
+      video.src = VIDEO;
+      video.load();
+    }, { rootMargin: '900px 0px' });
+    near.observe(box);
     const ro = new ResizeObserver(resize);
     ro.observe(box);
     loop();
@@ -127,6 +142,8 @@ export default function HandshakeScroll() {
       video.removeEventListener('loadeddata', draw);
       video.removeEventListener('seeked', draw);
       io.disconnect();
+      near.disconnect();
+      video.removeEventListener('canplay', onCanPlay);
       ro.disconnect();
       video.pause();
     };
@@ -148,11 +165,10 @@ export default function HandshakeScroll() {
       <div ref={boxRef} className="relative mt-4 aspect-square w-full overflow-hidden md:aspect-video md:max-h-[calc(100svh-72px)]">
         <video
           ref={videoRef}
-          src={VIDEO}
           muted
           loop
           playsInline
-          preload="auto"
+          preload="none"
           aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
         />

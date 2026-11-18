@@ -286,7 +286,9 @@ const Header = ({ currentRole, onRoleSwitch, onMenuClick, isDashboardPage, handl
               {/* Logo */}
               <Link to="/" className="flex items-center gap-2 ms-4" onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })}>
                 <img
-                  src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png"
+                  src="/Photas/bnc-leg-logo.webp"
+                  width="640"
+                  height="199"
                   alt="BNC LEG"
                   className="h-12 w-auto object-contain"
                   loading="eager"

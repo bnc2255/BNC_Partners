@@ -5,13 +5,94 @@
     <link rel="icon" type="image/jpeg" href="/Photas/LEG Favicon.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Join Our Growing Network</title>
+    <!-- Phone browsers paint their top bar in this colour -->
+    <meta name="theme-color" content="#DC2626">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inter:opsz,wght@14..32,300..700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <meta name="theme-color" content="#ffffff">
+    <!-- Only Manrope is used site-wide. Loaded without blocking the first paint
+         (system font shows first, then swaps). Arabic and icon fonts load on demand. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <link rel="preload" as="image" href="/loader/g.webp" fetchpriority="high">
+    <link rel="preload" as="image" href="/loader/frame.webp" fetchpriority="high">
+    <link rel="preload" as="image" href="/maps/dotted-world.svg">
+    <style>
+      /* BNC LEG loader: G, E, L dash in from the left, the frame line draws out of the
+         G and wraps around, then a glint sweeps while the page is still loading.
+         #leg-boot: plays in full once on every open/refresh, from the very first frame.
+         Page changes inside the site use the same artwork but only appear after 0.3s
+         (--leg-d), so fast page changes never flash it. */
+      @property --leg-sweep { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+      .leg-loader { --leg-d: .3s; position: fixed; inset: 0; z-index: 2147483000; display: grid; place-content: center; justify-items: center; gap: 22px; background: #fff; opacity: 0; pointer-events: none;
+        animation: leg-in .2s ease-out var(--leg-d) forwards, leg-giveup .3s ease-out 12s forwards; }
+      #leg-boot { --leg-d: 0s; opacity: 1; pointer-events: auto; animation: leg-giveup .3s ease-out 12s forwards; }
+      .leg-loader.is-done, #leg-boot.is-done { animation: leg-out .3s ease-out forwards; }
+      .leg-mark { position: relative; width: 190px; aspect-ratio: 462 / 214; }
+      .leg-mark img, .leg-shine { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .leg-ltr { opacity: 0; animation: leg-dash .55s cubic-bezier(.22,1.2,.36,1) forwards; }
+      .leg-g { animation-delay: calc(var(--leg-d) + .05s); } .leg-e { animation-delay: calc(var(--leg-d) + .32s); } .leg-l { animation-delay: calc(var(--leg-d) + .59s); }
+      .leg-streaks { position: absolute; inset: 0; pointer-events: none; }
+      .leg-streaks i { position: absolute; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, #DC2626); opacity: 0; animation: leg-streak .5s ease-out forwards; }
+      .leg-streaks i:nth-child(1) { top: 34%; left: 40%; width: 30%; animation-delay: calc(var(--leg-d) + .05s); }
+      .leg-streaks i:nth-child(2) { top: 58%; left: 36%; width: 26%; animation-delay: calc(var(--leg-d) + .1s); }
+      .leg-streaks i:nth-child(3) { top: 40%; left: 12%; width: 30%; animation-delay: calc(var(--leg-d) + .32s); }
+      .leg-streaks i:nth-child(4) { top: 62%; left: 8%; width: 24%; animation-delay: calc(var(--leg-d) + .37s); }
+      .leg-streaks i:nth-child(5) { top: 36%; left: -10%; width: 28%; animation-delay: calc(var(--leg-d) + .59s); }
+      .leg-streaks i:nth-child(6) { top: 60%; left: -14%; width: 22%; animation-delay: calc(var(--leg-d) + .64s); }
+      .leg-frame { -webkit-mask: conic-gradient(from 93deg at 50% 50%, #000 var(--leg-sweep), transparent 0); mask: conic-gradient(from 93deg at 50% 50%, #000 var(--leg-sweep), transparent 0); animation: leg-draw .75s cubic-bezier(.6,0,.3,1) calc(var(--leg-d) + 1.05s) forwards; }
+      .leg-shine { opacity: 0; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.95) 50%, transparent 60%); background-size: 300% 100%;
+        -webkit-mask-image: url(/loader/frame.webp), url(/loader/l.webp), url(/loader/e.webp), url(/loader/g.webp); mask-image: url(/loader/frame.webp), url(/loader/l.webp), url(/loader/e.webp), url(/loader/g.webp);
+        -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        animation: leg-show .01s calc(var(--leg-d) + 1.9s) forwards, leg-glint 1.4s ease-in-out calc(var(--leg-d) + 1.9s) infinite; }
+      .leg-bar { width: 190px; height: 3px; border-radius: 3px; background: rgba(220,38,38,.12); overflow: hidden; position: relative; opacity: 0; animation: leg-show .3s calc(var(--leg-d) + 1.85s) forwards; }
+      .leg-bar::after { content: ""; position: absolute; inset: 0; width: 38%; border-radius: 3px; background: #DC2626; transform: translateX(-110%); animation: leg-slide 1.4s ease-in-out calc(var(--leg-d) + 1.9s) infinite; }
+      @media (max-width: 639px) { .leg-mark, .leg-bar { width: 140px; } .leg-loader { gap: 18px; } }
+      @keyframes leg-in { to { opacity: 1; pointer-events: auto; } }
+      @keyframes leg-out { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+      @keyframes leg-giveup { to { opacity: 0; visibility: hidden; } }
+      @keyframes leg-dash { 0% { opacity: 0; transform: translateX(-150%) skewX(-22deg); filter: blur(3px); } 60% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: none; filter: none; } }
+      @keyframes leg-streak { 0% { opacity: 0; transform: translateX(-120%); } 30% { opacity: .85; } 100% { opacity: 0; transform: translateX(40%); } }
+      @keyframes leg-draw { to { --leg-sweep: 361deg; } }
+      @keyframes leg-show { to { opacity: 1; } }
+      @keyframes leg-glint { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+      @keyframes leg-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(270%); } }
+      @media (prefers-reduced-motion: reduce) {
+        .leg-ltr, .leg-streaks i, .leg-frame, .leg-shine, .leg-bar, .leg-bar::after { animation: none; }
+        .leg-ltr, .leg-bar { opacity: 1; } .leg-frame { -webkit-mask: none; mask: none; }
+      }
+    </style>
+    <noscript><style>#leg-boot { display: none; }</style></noscript>
   </head>
   <body>
+    <div id="leg-boot" class="leg-loader" role="status" aria-label="Loading">
+      <div class="leg-mark">
+        <div class="leg-streaks"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <img class="leg-frame" src="/loader/frame.webp" alt="" width="462" height="214">
+        <img class="leg-ltr leg-l" src="/loader/l.webp" alt="" width="462" height="214">
+        <img class="leg-ltr leg-e" src="/loader/e.webp" alt="" width="462" height="214">
+        <img class="leg-ltr leg-g" src="/loader/g.webp" alt="" width="462" height="214">
+        <div class="leg-shine"></div>
+      </div>
+      <div class="leg-bar"></div>
+    </div>
+    <script>
+      // Called by the app once the first page has rendered (src/components/ui/LegLoader.jsx).
+      // On every open/refresh the intro plays in full once (about 1.9s: G, E, L, then the
+      // frame line); if the page is still loading after that, the glint keeps going.
+      window.__legBootStart = performance.now();
+      window.__hideLegBoot = function () {
+        var el = document.getElementById('leg-boot');
+        if (!el || window.__PRERENDER__ || el.classList.contains('is-done')) return;
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var wait = reduce ? 0 : Math.max(0, 1950 - (performance.now() - window.__legBootStart));
+        setTimeout(function () {
+          el.classList.add('is-done');
+          setTimeout(function () { el.remove(); }, 320);
+        }, wait);
+      };
+      // Safety net: if the app fails to start, never keep the page covered.
+      setTimeout(function () { window.__hideLegBoot(); }, 12000);
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

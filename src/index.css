@@ -1034,25 +1034,22 @@ input[placeholder*="search" i]:focus-visible { outline: none; }
 
 /* Main action buttons: a light reflection sweeps across every ~3 seconds */
 @keyframes lg-shine { 0% { background-position: 100% 0; } 32%, 100% { background-position: 0 0; } }
-@keyframes lg-shine-2 { 0% { background-position: 100% 0, 0 0; } 32%, 100% { background-position: 0 0, 0 0; } }
-.lg-btn-ink, .lg-btn-red {
-  background-image: linear-gradient(115deg, transparent 0 40%, rgba(255,255,255,.34) 47%, rgba(255,255,255,.1) 52%, transparent 58% 100%);
-  background-size: 280% 100%;
-  background-repeat: no-repeat;
-  animation: lg-shine 3.2s cubic-bezier(.45,.05,.3,1) infinite;
+/* The sweep moves a GPU layer (transform) instead of repainting the background
+   every frame (background-position), which Lighthouse flagged as non-composited. */
+@keyframes lg-shine-x { 0% { transform: translateX(-100%); } 32%, 100% { transform: translateX(100%); } }
+.lg-btn-ink, .lg-btn-red, .lg-pbtn-dark { isolation: isolate; overflow: hidden; }
+.lg-btn-ink::after, .lg-btn-red::after, .lg-pbtn-dark::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(115deg, transparent 0 40%, rgba(255,255,255,.34) 47%, rgba(255,255,255,.1) 52%, transparent 58% 100%);
+  transform: translateX(-100%); will-change: transform;
+  animation: lg-shine-x 3.2s cubic-bezier(.45,.05,.3,1) infinite;
 }
-.lg-pbtn-dark {
-  background-image:
-    linear-gradient(115deg, transparent 0 40%, rgba(255,255,255,.3) 47%, rgba(255,255,255,.08) 52%, transparent 58% 100%),
-    linear-gradient(180deg, #2c2c2e 0%, #111113 100%);
-  background-size: 280% 100%, 100% 100%;
-  background-repeat: no-repeat;
-  animation: lg-shine-2 3.2s cubic-bezier(.45,.05,.3,1) infinite;
-}
+.lg-pbtn-dark::after { background: linear-gradient(115deg, transparent 0 40%, rgba(255,255,255,.3) 47%, rgba(255,255,255,.08) 52%, transparent 58% 100%); }
+.lg-pbtn-dark { background-image: linear-gradient(180deg, #2c2c2e 0%, #111113 100%); }
 /* keep dashboards and disabled buttons calm */
-.lg-dash .lg-btn-ink, .lg-dash .lg-btn-red, .lg-btn-ink:disabled, .lg-pbtn-dark:disabled { animation: none; background-position: 0 0; }
+.lg-dash .lg-btn-ink::after, .lg-dash .lg-btn-red::after, .lg-btn-ink:disabled::after, .lg-pbtn-dark:disabled::after { animation: none; display: none; }
 @media (prefers-reduced-motion: reduce) {
-  .lg-btn-ink, .lg-btn-red, .lg-pbtn-dark { animation: none; }
+  .lg-btn-ink::after, .lg-btn-red::after, .lg-pbtn-dark::after { animation: none; display: none; }
 }
 
 /* Country page header: landmark photo + frosted liquid glass on the text side */

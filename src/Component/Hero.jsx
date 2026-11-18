@@ -15,8 +15,8 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
-      delayChildren: 0.1,
+      staggerChildren: 0.08,
+      delayChildren: 0,
     }
   }
 };
@@ -26,8 +26,15 @@ const itemVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] }
+    transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] }
   }
+};
+
+// The headline is the page's main content (Lighthouse "LCP"): it slides in but is
+// never hidden, so it counts as painted the moment the page renders.
+const titleVariants = {
+  hidden: { y: 18 },
+  visible: { y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
 };
 
 const mapVariants = {
@@ -36,9 +43,32 @@ const mapVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 1.0, delay: 0.6, ease: [0.16, 1, 0.3, 1] }
+    transition: { duration: 0.8, delay: 0.25, ease: [0.16, 1, 0.3, 1] }
   }
 };
+
+// Phones get a lighter, quicker map entrance (no scale/slide, short delay).
+const mapVariantsPhone = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.5, delay: 0.15, ease: 'easeOut' } },
+};
+
+const PHONE_QUERY = '(max-width: 639px)';
+
+// True only on phone-width screens; tablets/laptops keep the full desktop experience.
+function useIsPhone() {
+  const [isPhone, setIsPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(PHONE_QUERY).matches
+  );
+  useEffect(() => {
+    const media = window.matchMedia(PHONE_QUERY);
+    const update = () => setIsPhone(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return isPhone;
+}
 
 const Hero = () => {
   const { t, i18n } = useTranslation();
@@ -50,6 +80,9 @@ const Hero = () => {
   // scroll-linked motion: text drifts up and fades, the map rises and zooms in
   const heroRef = useRef(null);
   const reduceMotion = useReducedMotion();
+  const isPhone = useIsPhone();
+  // Scroll parallax (drift/zoom) is skipped on phones: costly and distracting on small screens.
+  const disableParallax = reduceMotion || isPhone;
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const textY = useTransform(scrollYProgress, [0, 0.6], [0, -90]);
   const textOpacity = useTransform(scrollYProgress, [0, 0.45], [1, 0]);
@@ -75,7 +108,7 @@ const Hero = () => {
   const mapWrapAlign = isRtl ? 'lg:justify-start' : 'lg:justify-end';
   const mapOrigin = isRtl ? 'origin-top-left' : 'origin-top-right';
   const mapShift = isRtl ? 'lg:-translate-x-28 xl:-translate-x-36' : 'lg:translate-x-28 xl:translate-x-36';
-  const floatingChatPosition = isRtl ? '-left-3' : '-right-3';
+  const floatingChatPosition = isRtl ? 'left-2 sm:-left-3' : 'right-2 sm:-right-3';
 
   useEffect(() => {
     if (location.pathname === '/partner-form') {
@@ -99,6 +132,12 @@ const Hero = () => {
     let idleId;
 
     const enableMap = () => setShouldRenderMap(true);
+
+    // Phones load the map straight away instead of waiting for an idle slot.
+    if (window.matchMedia(PHONE_QUERY).matches) {
+      enableMap();
+      return undefined;
+    }
 
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       idleId = window.requestIdleCallback(enableMap, { timeout: 1500 });
@@ -164,7 +203,7 @@ const Hero = () => {
 
   return (
     <>
-      <section ref={heroRef} id="home" className="relative min-h-screen overflow-hidden text-slate-900 -mt-16 pt-16 sm:pt-24 lg:pt-15" dir={isRtl ? 'rtl' : 'ltr'}>
+      <section ref={heroRef} id="home" className="relative sm:min-h-screen overflow-hidden text-slate-900 -mt-16 pt-16 sm:pt-24 lg:pt-15" dir={isRtl ? 'rtl' : 'ltr'}>
         <style dangerouslySetInnerHTML={{
           __html: `
           @keyframes liquid-blob-1 {
@@ -220,60 +259,64 @@ const Hero = () => {
         <button
           type="button"
           onClick={() => setIsChatOpen((open) => !open)}
-          className={`fixed -bottom-10 ${floatingChatPosition} z-40 inline-flex items-center justify-center rounded-full bg-transparent p-2 hover:opacity-90 transition-all`}
+          className={`fixed bottom-3 sm:-bottom-10 ${floatingChatPosition} z-40 inline-flex items-center justify-center rounded-full bg-transparent p-0 sm:p-2 hover:opacity-90 transition-all`}
           aria-label={isChatOpen ? 'Close AI assistant' : 'Get AI help'}
           aria-expanded={isChatOpen}
         >
           <img
-            src="/Photas/chatbot_red_carrot-removebg-preview.png"
+            src="/Photas/chatbot-carrot.webp"
+            width="320"
+            height="103"
             alt="ChatBot AI"
-            className="h-36 w-36 object-contain"
+            className="h-[60px] w-[60px] sm:h-36 sm:w-36 object-contain"
           />
         </button>
         {/* Liquid Glass Background */}
         <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 15% 20%, #dbe8ff 0, transparent 40%), radial-gradient(circle at 85% 30%, #e9e4ff 0, transparent 38%), linear-gradient(180deg, #f7f9fe, #eaf0fb)' }}>
           {/* Animated Liquid Blobs */}
-          <div className={`absolute -top-12 ${isRtl ? '-left-12' : '-right-12'} w-[450px] h-[450px] rounded-full bg-[#c9dbff]/60 blur-[80px] animate-liquid-1`} />
-          <div className={`absolute top-48 ${isRtl ? 'right-24' : 'left-24'} w-[400px] h-[400px] rounded-full bg-[#e4dcff]/60 blur-[90px] animate-liquid-2`} />
-          <div className="absolute bottom-24 right-[15%] w-[420px] h-[420px] rounded-full bg-[#d6e4ff]/50 blur-[100px] animate-liquid-3" />
-          <div className={`absolute bottom-[-10%] ${isRtl ? 'right-0' : 'left-0'} w-[380px] h-[380px] rounded-full bg-[#ece6ff]/50 blur-[85px] animate-liquid-1`} />
+          <div className={`absolute -top-12 ${isRtl ? '-left-12' : '-right-12'} hidden sm:block w-[450px] h-[450px] rounded-full bg-[#c9dbff]/60 blur-[80px] animate-liquid-1`} />
+          <div className={`absolute top-48 ${isRtl ? 'right-24' : 'left-24'} hidden sm:block w-[400px] h-[400px] rounded-full bg-[#e4dcff]/60 blur-[90px] animate-liquid-2`} />
+          <div className="absolute bottom-24 right-[15%] hidden sm:block w-[420px] h-[420px] rounded-full bg-[#d6e4ff]/50 blur-[100px] animate-liquid-3" />
+          <div className={`absolute bottom-[-10%] ${isRtl ? 'right-0' : 'left-0'} hidden sm:block w-[380px] h-[380px] rounded-full bg-[#ece6ff]/50 blur-[85px] animate-liquid-1`} />
 
           {/* Frosted Glass Overlay */}
-          <div className="absolute inset-0 backdrop-blur-[80px] bg-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0.15)_100%)]" />
+          <div className="absolute inset-0 hidden sm:block backdrop-blur-[80px] bg-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0.15)_100%)]" />
         </div>
 
-        <motion.div className="relative z-20" style={reduceMotion ? undefined : { y: textY, opacity: textOpacity }}>
+        <motion.div className="relative z-20" style={disableParallax ? undefined : { y: textY, opacity: textOpacity }}>
         <motion.div
-          className="relative max-w-7xl mx-auto px-6 lg:px-8 pt-10 sm:pt-12 lg:pt-16 pb-0 z-20"
+          className="relative max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 pt-7 sm:pt-12 lg:pt-16 pb-0 z-20"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
           <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
             {/* Badge */}
-            <motion.div className="mb-4 sm:mb-6" variants={itemVariants}>
+            <motion.div className="mb-3.5 sm:mb-6" variants={itemVariants}>
               <span className="lg-chip select-none">
                 <span className="lg-pulse-dot" aria-hidden="true" />
-                <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d1d1f] rtl:tracking-normal">{t('hero.badge')}</span>
+                <span className="text-[10.5px] sm:text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1d1d1f] rtl:tracking-normal">{t('hero.badge')}</span>
               </span>
             </motion.div>
 
 
             <motion.h1
-              className="font-capriola text-5xl sm:text-6xl md:text-7xl font-light text-[#1d1d1f] leading-tight tracking-[-0.04em] max-w-5xl mx-auto mb-1 flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-2"
-              variants={itemVariants}
+              className="font-capriola text-[36px] sm:text-6xl md:text-7xl font-light text-[#1d1d1f] leading-tight tracking-[-0.04em] max-w-5xl mx-auto mb-1 flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-4 gap-y-1 sm:gap-y-2"
+              variants={titleVariants}
             >
               <span className="relative -translate-y-1.5 sm:-translate-y-2 lg:-translate-y-2.5">{t('hero.titlePrefix')}</span>
               <img
-                src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png"
+                src="/Photas/bnc-leg-logo.webp"
+                width="640"
+                height="199"
                 alt="BNC LEG"
-                className="h-10 sm:h-14 md:h-16 lg:h-20 w-auto object-contain inline-block align-middle relative -translate-y-1 sm:-translate-y-1.5"
+                className="h-[34px] sm:h-14 md:h-16 lg:h-20 w-auto object-contain inline-block align-middle relative -translate-y-1 sm:-translate-y-1.5"
               />
             </motion.h1>
 
             {/* Tagline */}
             <motion.p
-              className="font-geist text-lg md:text-xl font-normal text-slate-500 tracking-tight max-w-3xl mx-auto mt-0.5 mb-8 leading-relaxed"
+              className="font-geist text-[15px] sm:text-lg md:text-xl font-normal text-slate-500 tracking-tight max-w-3xl mx-auto mt-1 sm:mt-0.5 mb-6 sm:mb-8 leading-relaxed"
               variants={itemVariants}
             >
               {t('hero.subtitle')
@@ -287,18 +330,18 @@ const Hero = () => {
 
             {/* CTA Buttons */}
             <motion.div
-              className="mb-6 flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-lg mx-auto"
+              className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-2.5 sm:gap-4 justify-center items-center w-full max-w-[340px] sm:max-w-lg mx-auto"
               variants={itemVariants}
             >
               <button
                 onClick={() => setIsModalOpen(true)}
-                className="lg-btn lg-btn-ink lg-btn-grow w-full sm:w-auto !min-h-[52px] !px-9 !text-[16px]"
+                className="lg-btn lg-btn-ink lg-btn-grow w-full sm:w-auto !min-h-[48px] sm:!min-h-[52px] !px-9 !text-[15px] sm:!text-[16px]"
               >
                 {t('hero.becomePartner')}
               </button>
               <Link
                 to={isLoggedIn ? "/dashboard" : "/login"}
-                className="lg-btn lg-btn-glass lg-btn-grow w-full sm:w-auto !min-h-[52px] !px-9 !text-[16px]"
+                className="lg-btn lg-btn-glass lg-btn-grow w-full sm:w-auto !min-h-[48px] sm:!min-h-[52px] !px-9 !text-[15px] sm:!text-[16px]"
               >
                 {t('hero.partnerLogin')}
               </Link>
@@ -310,12 +353,12 @@ const Hero = () => {
 
         {/* Map / Video Section (Adjustable size and alignment) */}
         <motion.div
-          className="relative w-full max-w-none z-10 flex justify-center mt-4 sm:mt-2 lg:-mt-4 pb-12"
-          variants={mapVariants}
+          className="relative w-full max-w-none z-10 flex justify-center mt-5 sm:mt-2 lg:-mt-4 pb-10 sm:pb-12"
+          variants={isPhone ? mapVariantsPhone : mapVariants}
           initial="hidden"
           animate="visible"
         >
-          <motion.div style={reduceMotion ? undefined : { y: mapY, scale: mapScale }} className="relative w-full max-w-[1350px] px-6 lg:px-8 origin-top">
+          <motion.div style={disableParallax ? undefined : { y: mapY, scale: mapScale }} className="relative w-full max-w-[1350px] px-1 sm:px-6 lg:px-8 origin-top">
             {heroAnimationVideoSrc ? (
               <video
                 src={heroAnimationVideoSrc}
@@ -329,13 +372,31 @@ const Hero = () => {
               />
             ) : shouldRenderMap ? (
               <Suspense fallback={<div className="aspect-[2/1] w-full rounded-3xl bg-white/40" aria-hidden="true" />}>
-                <WorldMap
-                  lineColor="#DC2626"
-                  dots={mapDots}
-                  drawDuration={0.65}
-                  handoffPause={0.10}
-                  loopPause={0.9}
-                />
+                {isPhone ? (
+                  // Phone: zoom 20% and crop the empty polar/ocean edges so the map reads
+                  // larger; thicker arcs and dots, and a ~4s loop instead of ~9s.
+                  <div className="aspect-[2/1] w-full overflow-hidden">
+                    <div className="scale-[1.2] origin-center">
+                      <WorldMap
+                        lineColor="#DC2626"
+                        dots={mapDots}
+                        drawDuration={0.38}
+                        handoffPause={0.06}
+                        loopPause={1.4}
+                        strokeWidth={2}
+                        dotRadius={3.2}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <WorldMap
+                    lineColor="#DC2626"
+                    dots={mapDots}
+                    drawDuration={0.65}
+                    handoffPause={0.10}
+                    loopPause={0.9}
+                  />
+                )}
               </Suspense>
             ) : (
               <div className="aspect-[2/1] w-full rounded-3xl bg-white/40" aria-hidden="true" />

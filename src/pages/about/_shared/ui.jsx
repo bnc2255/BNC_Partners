@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { animate, motion, useInView, useReducedMotion } from 'framer-motion';
 import { useFirstScreen } from '../../../components/ui/useFirstScreen';
+import { loadStylesheet, ICON_FONT_CSS } from '../../../lib/loadStylesheet';
+
+// Material Symbols icons are only used on the About pages; load the font here.
+loadStylesheet(ICON_FONT_CSS);
 
 const EASE = [0.2, 0.7, 0.1, 1];
 

@@ -2,14 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import DottedMap from "dotted-map";
-
-const STATIC_SVG_MAP = new DottedMap({ height: 100, grid: "diagonal" }).getSVG({
-  radius: 0.22,
-  color: "#00000040",
-  shape: "circle",
-  backgroundColor: "transparent",
-});
+// Pre-rendered by scripts/build-dotted-map.mjs (same settings as before), so the
+// browser no longer builds thousands of dots at runtime, which was slow on phones.
+const DOTTED_MAP_SRC = "/maps/dotted-world.svg";
 
 export function WorldMap({
   dots = [],
@@ -17,7 +12,10 @@ export function WorldMap({
   drawDuration = 2.1,
   handoffPause = 0.45,
   loopPause = 1.6,
+  strokeWidth = 1,
+  dotRadius = 2,
 }) {
+  const r = dotRadius;
   const svgRef = useRef(null);
   const [activeArcIndex, setActiveArcIndex] = useState(0);
   const [cycleToken, setCycleToken] = useState(0);
@@ -57,7 +55,7 @@ export function WorldMap({
       className="w-full aspect-[2/1] bg-transparent rounded-2xl relative font-sans overflow-hidden"
     >
       <img
-        src={`data:image/svg+xml;utf8,${encodeURIComponent(STATIC_SVG_MAP)}`}
+        src={DOTTED_MAP_SRC}
         className="h-full w-full [mask-image:linear-gradient(to_bottom,transparent,white_10%,white_90%,transparent)] pointer-events-none select-none"
         alt="world map"
         height={495}
@@ -84,7 +82,7 @@ export function WorldMap({
                   d={createCurvedPath(startPoint, endPoint)}
                   fill="none"
                   stroke="url(#path-gradient)"
-                  strokeWidth="1"
+                  strokeWidth={strokeWidth}
                   opacity="1"
                 />
               ) : (
@@ -92,7 +90,7 @@ export function WorldMap({
                   d={createCurvedPath(startPoint, endPoint)}
                   fill="none"
                   stroke="url(#path-gradient)"
-                  strokeWidth="1"
+                  strokeWidth={strokeWidth}
                   initial={{ pathLength: 0, opacity: isActive ? 1 : 0.18 }}
                   animate={isActive ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0.18 }}
                   transition={{
@@ -121,16 +119,16 @@ export function WorldMap({
               <circle
                 cx={projectPoint(dot.start.lat, dot.start.lng).x}
                 cy={projectPoint(dot.start.lat, dot.start.lng).y}
-                r="2"
+                r={r}
                 fill={lineColor}
               />
               <motion.circle
                 cx={projectPoint(dot.start.lat, dot.start.lng).x}
                 cy={projectPoint(dot.start.lat, dot.start.lng).y}
-                r="2"
+                r={r}
                 fill={lineColor}
-                initial={{ r: 2, opacity: 0.16 }}
-                animate={i === activeArcIndex ? { r: [2, 6, 2], opacity: [0.16, 0.42, 0.16] } : { r: 2, opacity: i < activeArcIndex ? 0.26 : 0.16 }}
+                initial={{ r, opacity: 0.16 }}
+                animate={i === activeArcIndex ? { r: [r, r * 3, r], opacity: [0.16, 0.42, 0.16] } : { r, opacity: i < activeArcIndex ? 0.26 : 0.16 }}
                 transition={{
                   duration: i === activeArcIndex ? 0.7 : 0.01,
                   ease: "easeOut",
@@ -142,16 +140,16 @@ export function WorldMap({
               <circle
                 cx={projectPoint(dot.end.lat, dot.end.lng).x}
                 cy={projectPoint(dot.end.lat, dot.end.lng).y}
-                r="2"
+                r={r}
                 fill={lineColor}
               />
               <motion.circle
                 cx={projectPoint(dot.end.lat, dot.end.lng).x}
                 cy={projectPoint(dot.end.lat, dot.end.lng).y}
-                r="2"
+                r={r}
                 fill={lineColor}
-                initial={{ r: 2, opacity: 0.14 }}
-                animate={i === activeArcIndex ? { r: [2, 7.5, 2], opacity: [0.14, 0.45, 0.14] } : { r: 2, opacity: i < activeArcIndex ? 0.24 : 0.14 }}
+                initial={{ r, opacity: 0.14 }}
+                animate={i === activeArcIndex ? { r: [r, r * 3.75, r], opacity: [0.14, 0.45, 0.14] } : { r, opacity: i < activeArcIndex ? 0.24 : 0.14 }}
                 transition={{
                   duration: i === activeArcIndex ? 0.7 : 0.01,
                   delay: i === activeArcIndex ? Math.max(0.2, drawDuration - 0.45) : 0,

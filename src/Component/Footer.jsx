@@ -65,7 +65,9 @@ const Footer = () => {
           <div className="flex flex-col gap-5">
             <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="inline-block">
               <img
-                src="/Photas/aaf68a14-dda6-4743-824f-5bc2592df449.png"
+                src="/Photas/bnc-leg-logo.webp"
+                width="640"
+                height="199"
                 alt="BNC LEG Partners"
                 className="h-10 w-auto object-contain"
                 loading="lazy"
